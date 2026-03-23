@@ -6,8 +6,15 @@ db.serialize(() => {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT,
     balance INTEGER,
-    photo TEXT
+    photo TEXT,
+    owner_name TEXT
   )`);
+
+  db.run("ALTER TABLE teams ADD COLUMN owner_name TEXT", (err) => {
+    if (err && !err.message.includes("duplicate column name")) {
+      console.error(err.message);
+    }
+  });
 
   db.run(`CREATE TABLE IF NOT EXISTS players (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -15,8 +22,22 @@ db.serialize(() => {
     role TEXT,
     base_price INTEGER,
     sold_to_team INTEGER,
-    photo TEXT
+    photo TEXT,
+    age INTEGER,
+    mobile_number TEXT
   )`);
+
+  db.run("ALTER TABLE players ADD COLUMN age INTEGER", (err) => {
+    if (err && !err.message.includes("duplicate column name")) {
+      console.error(err.message);
+    }
+  });
+
+  db.run("ALTER TABLE players ADD COLUMN mobile_number TEXT", (err) => {
+    if (err && !err.message.includes("duplicate column name")) {
+      console.error(err.message);
+    }
+  });
 
   db.run(`CREATE TABLE IF NOT EXISTS auction_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

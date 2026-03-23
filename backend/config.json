@@ -1,102 +1,864 @@
 {
   "teams": [
-    { "id": 1, "name": "Team A", "balance": 100000, "photo": "/images/teamA.png" },
-    { "id": 2, "name": "Team B", "balance": 100000, "photo": "/images/teamB.png" },
-    { "id": 3, "name": "Team C", "balance": 100000, "photo": "/images/teamC.png" },
-    { "id": 4, "name": "Team D", "balance": 100000, "photo": "/images/teamD.png" },
-    { "id": 5, "name": "Team E", "balance": 100000, "photo": "/images/teamE.png" },
-    { "id": 6, "name": "Team F", "balance": 100000, "photo": "/images/teamF.png" }
+    {
+      "id": 1,
+      "name": "Team A",
+      "owner_name": "Owner A",
+      "balance": 100000,
+      "photo": "/images/teamA.png",
+      "captain_player_id": 1
+    },
+    {
+      "id": 2,
+      "name": "Team B",
+      "owner_name": "Owner B",
+      "balance": 100000,
+      "photo": "/images/teamB.png",
+      "captain_player_id": 2
+    },
+    {
+      "id": 3,
+      "name": "Team C",
+      "owner_name": "Owner C",
+      "balance": 100000,
+      "photo": "/images/teamC.png",
+      "captain_player_id": 3
+    },
+    {
+      "id": 4,
+      "name": "Team D",
+      "owner_name": "Owner D",
+      "balance": 100000,
+      "photo": "/images/teamD.png",
+      "captain_player_id": 4
+    },
+    {
+      "id": 5,
+      "name": "Team E",
+      "owner_name": "Owner E",
+      "balance": 100000,
+      "photo": "/images/teamE.png",
+      "captain_player_id": 5
+    },
+    {
+      "id": 6,
+      "name": "Team F",
+      "owner_name": "Owner F",
+      "balance": 100000,
+      "photo": "/images/teamF.png",
+      "captain_player_id": 6
+    }
   ],
   "players": [
-    { "id": 1, "name": "Player 1", "role": "Batsman", "base_price": 10000, "photo": "/images/player1.png" },
-    { "id": 2, "name": "Player 2", "role": "Bowler", "base_price": 12000, "photo": "/images/player2.png" },
-    { "id": 3, "name": "Player 3", "role": "All-Rounder", "base_price": 15000, "photo": "/images/player3.png" },
-    { "id": 4, "name": "Player 4", "role": "Wicketkeeper", "base_price": 8000, "photo": "/images/player4.png" },
-    { "id": 5, "name": "Player 5", "role": "Batsman", "base_price": 11000, "photo": "/images/player5.png" },
-    { "id": 6, "name": "Player 6", "role": "Bowler", "base_price": 13000, "photo": "/images/player6.png" },
-    { "id": 7, "name": "Player 7", "role": "All-Rounder", "base_price": 16000, "photo": "/images/player7.png" },
-    { "id": 8, "name": "Player 8", "role": "Wicketkeeper", "base_price": 9000, "photo": "/images/player8.png" },
-    { "id": 9, "name": "Player 9", "role": "Batsman", "base_price": 10500, "photo": "/images/player9.png" },
-    { "id": 10, "name": "Player 10", "role": "Bowler", "base_price": 12500, "photo": "/images/player10.png" },
-    { "id": 11, "name": "Player 11", "role": "All-Rounder", "base_price": 15500, "photo": "/images/player11.png" },
-    { "id": 12, "name": "Player 12", "role": "Wicketkeeper", "base_price": 8500, "photo": "/images/player12.png" },
-    { "id": 13, "name": "Player 13", "role": "Batsman", "base_price": 11500, "photo": "/images/player13.png" },
-    { "id": 14, "name": "Player 14", "role": "Bowler", "base_price": 13500, "photo": "/images/player14.png" },
-    { "id": 15, "name": "Player 15", "role": "All-Rounder", "base_price": 16500, "photo": "/images/player15.png" },
-    { "id": 16, "name": "Player 16", "role": "Wicketkeeper", "base_price": 9500, "photo": "/images/player16.png" },
-    { "id": 17, "name": "Player 17", "role": "Batsman", "base_price": 10200, "photo": "/images/player17.png" },
-    { "id": 18, "name": "Player 18", "role": "Bowler", "base_price": 12200, "photo": "/images/player18.png" },
-    { "id": 19, "name": "Player 19", "role": "All-Rounder", "base_price": 15200, "photo": "/images/player19.png" },
-    { "id": 20, "name": "Player 20", "role": "Wicketkeeper", "base_price": 8200, "photo": "/images/player20.png" },
-    { "id": 21, "name": "Player 21", "role": "Batsman", "base_price": 11200, "photo": "/images/player21.png" },
-    { "id": 22, "name": "Player 22", "role": "Bowler", "base_price": 13200, "photo": "/images/player22.png" },
-    { "id": 23, "name": "Player 23", "role": "All-Rounder", "base_price": 16200, "photo": "/images/player23.png" },
-    { "id": 24, "name": "Player 24", "role": "Wicketkeeper", "base_price": 9200, "photo": "/images/player24.png" },
-    { "id": 25, "name": "Player 25", "role": "Batsman", "base_price": 10800, "photo": "/images/player25.png" },
-    { "id": 26, "name": "Player 26", "role": "Bowler", "base_price": 12800, "photo": "/images/player26.png" },
-    { "id": 27, "name": "Player 27", "role": "All-Rounder", "base_price": 15800, "photo": "/images/player27.png" },
-    { "id": 28, "name": "Player 28", "role": "Wicketkeeper", "base_price": 8800, "photo": "/images/player28.png" },
-    { "id": 29, "name": "Player 29", "role": "Batsman", "base_price": 11800, "photo": "/images/player29.png" },
-    { "id": 30, "name": "Player 30", "role": "Bowler", "base_price": 13800, "photo": "/images/player30.png" },
-    { "id": 31, "name": "Player 31", "role": "All-Rounder", "base_price": 16800, "photo": "/images/player31.png" },
-    { "id": 32, "name": "Player 32", "role": "Wicketkeeper", "base_price": 9800, "photo": "/images/player32.png" },
-    { "id": 33, "name": "Player 33", "role": "Batsman", "base_price": 10300, "photo": "/images/player33.png" },
-    { "id": 34, "name": "Player 34", "role": "Bowler", "base_price": 12300, "photo": "/images/player34.png" },
-    { "id": 35, "name": "Player 35", "role": "All-Rounder", "base_price": 15300, "photo": "/images/player35.png" },
-    { "id": 36, "name": "Player 36", "role": "Wicketkeeper", "base_price": 8300, "photo": "/images/player36.png" },
-    { "id": 37, "name": "Player 37", "role": "Batsman", "base_price": 11300, "photo": "/images/player37.png" },
-    { "id": 38, "name": "Player 38", "role": "Bowler", "base_price": 13300, "photo": "/images/player38.png" },
-    { "id": 39, "name": "Player 39", "role": "All-Rounder", "base_price": 16300, "photo": "/images/player39.png" },
-    { "id": 40, "name": "Player 40", "role": "Wicketkeeper", "base_price": 9300, "photo": "/images/player40.png" },
-    { "id": 41, "name": "Player 41", "role": "Batsman", "base_price": 10400, "photo": "/images/player41.png" },
-    { "id": 42, "name": "Player 42", "role": "Bowler", "base_price": 12400, "photo": "/images/player42.png" },
-    { "id": 43, "name": "Player 43", "role": "All-Rounder", "base_price": 15400, "photo": "/images/player43.png" },
-    { "id": 44, "name": "Player 44", "role": "Wicketkeeper", "base_price": 8400, "photo": "/images/player44.png" },
-    { "id": 45, "name": "Player 45", "role": "Batsman", "base_price": 11400, "photo": "/images/player45.png" },
-    { "id": 46, "name": "Player 46", "role": "Bowler", "base_price": 13400, "photo": "/images/player46.png" },
-    { "id": 47, "name": "Player 47", "role": "All-Rounder", "base_price": 16400, "photo": "/images/player47.png" },
-    { "id": 48, "name": "Player 48", "role": "Wicketkeeper", "base_price": 9400, "photo": "/images/player48.png" },
-    { "id": 49, "name": "Player 49", "role": "Batsman", "base_price": 10600, "photo": "/images/player49.png" },
-    { "id": 50, "name": "Player 50", "role": "Bowler", "base_price": 12600, "photo": "/images/player50.png" },
-    { "id": 51, "name": "Player 51", "role": "All-Rounder", "base_price": 15600, "photo": "/images/player51.png" },
-    { "id": 52, "name": "Player 52", "role": "Wicketkeeper", "base_price": 8600, "photo": "/images/player52.png" },
-    { "id": 53, "name": "Player 53", "role": "Batsman", "base_price": 11600, "photo": "/images/player53.png" },
-    { "id": 54, "name": "Player 54", "role": "Bowler", "base_price": 13600, "photo": "/images/player54.png" },
-    { "id": 55, "name": "Player 55", "role": "All-Rounder", "base_price": 16600, "photo": "/images/player55.png" },
-    { "id": 56, "name": "Player 56", "role": "Wicketkeeper", "base_price": 9600, "photo": "/images/player56.png" },
-    { "id": 57, "name": "Player 57", "role": "Batsman", "base_price": 10700, "photo": "/images/player57.png" },
-    { "id": 58, "name": "Player 58", "role": "Bowler", "base_price": 12700, "photo": "/images/player58.png" },
-    { "id": 59, "name": "Player 59", "role": "All-Rounder", "base_price": 15700, "photo": "/images/player59.png" },
-    { "id": 60, "name": "Player 60", "role": "Wicketkeeper", "base_price": 8700, "photo": "/images/player60.png" },
-    { "id": 61, "name": "Player 61", "role": "Batsman", "base_price": 11700, "photo": "/images/player61.png" },
-    { "id": 62, "name": "Player 62", "role": "Bowler", "base_price": 13700, "photo": "/images/player62.png" },
-    { "id": 63, "name": "Player 63", "role": "All-Rounder", "base_price": 16700, "photo": "/images/player63.png" },
-    { "id": 64, "name": "Player 64", "role": "Wicketkeeper", "base_price": 9700, "photo": "/images/player64.png" },
-    { "id": 65, "name": "Player 65", "role": "Batsman", "base_price": 10900, "photo": "/images/player65.png" },
-    { "id": 66, "name": "Player 66", "role": "Bowler", "base_price": 12900, "photo": "/images/player66.png" },
-    { "id": 67, "name": "Player 67", "role": "All-Rounder", "base_price": 15900, "photo": "/images/player67.png" },
-    { "id": 68, "name": "Player 68", "role": "Wicketkeeper", "base_price": 8900, "photo": "/images/player68.png" },
-    { "id": 69, "name": "Player 69", "role": "Batsman", "base_price": 11900, "photo": "/images/player69.png" },
-    { "id": 70, "name": "Player 70", "role": "Bowler", "base_price": 13900, "photo": "/images/player70.png" },
-    { "id": 71, "name": "Player 71", "role": "All-Rounder", "base_price": 16900, "photo": "/images/player71.png" },
-    { "id": 72, "name": "Player 72", "role": "Wicketkeeper", "base_price": 9900, "photo": "/images/player72.png" },
-    { "id": 73, "name": "Player 73", "role": "Batsman", "base_price": 10150, "photo": "/images/player73.png" },
-    { "id": 74, "name": "Player 74", "role": "Bowler", "base_price": 12150, "photo": "/images/player74.png" },
-    { "id": 75, "name": "Player 75", "role": "All-Rounder", "base_price": 15150, "photo": "/images/player75.png" },
-    { "id": 76, "name": "Player 76", "role": "Wicketkeeper", "base_price": 8150, "photo": "/images/player76.png" },
-    { "id": 77, "name": "Player 77", "role": "Batsman", "base_price": 11150, "photo": "/images/player77.png" },
-    { "id": 78, "name": "Player 78", "role": "Bowler", "base_price": 13150, "photo": "/images/player78.png" },
-    { "id": 79, "name": "Player 79", "role": "All-Rounder", "base_price": 16150, "photo": "/images/player79.png" },
-    { "id": 80, "name": "Player 80", "role": "Wicketkeeper", "base_price": 9150, "photo": "/images/player80.png" },
-    { "id": 81, "name": "Player 81", "role": "Batsman", "base_price": 10250, "photo": "/images/player81.png" },
-    { "id": 82, "name": "Player 82", "role": "Bowler", "base_price": 12250, "photo": "/images/player82.png" },
-    { "id": 83, "name": "Player 83", "role": "All-Rounder", "base_price": 15250, "photo": "/images/player83.png" },
-    { "id": 84, "name": "Player 84", "role": "Wicketkeeper", "base_price": 8250, "photo": "/images/player84.png" },
-    { "id": 85, "name": "Player 85", "role": "Batsman", "base_price": 11250, "photo": "/images/player85.png" },
-    { "id": 86, "name": "Player 86", "role": "Bowler", "base_price": 13250, "photo": "/images/player86.png" },
-    { "id": 87, "name": "Player 87", "role": "All-Rounder", "base_price": 16250, "photo": "/images/player87.png" },
-    { "id": 88, "name": "Player 88", "role": "Wicketkeeper", "base_price": 9250, "photo": "/images/player88.png" },
-    { "id": 89, "name": "Player 89", "role": "Batsman", "base_price": 10350, "photo": "/images/player89.png" },
-    { "id": 90, "name": "Player 90", "role": "Bowler", "base_price": 12350, "photo": "/images/player90.png" }
+    {
+      "id": 1,
+      "name": "Player 1",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player1.png",
+      "age": 19,
+      "mobile_number": "9000000001"
+    },
+    {
+      "id": 2,
+      "name": "Player 2",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player2.png",
+      "age": 20,
+      "mobile_number": "9000000002"
+    },
+    {
+      "id": 3,
+      "name": "Player 3",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player3.png",
+      "age": 21,
+      "mobile_number": "9000000003"
+    },
+    {
+      "id": 4,
+      "name": "Player 4",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player4.png",
+      "age": 22,
+      "mobile_number": "9000000004"
+    },
+    {
+      "id": 5,
+      "name": "Player 5",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player5.png",
+      "age": 23,
+      "mobile_number": "9000000005"
+    },
+    {
+      "id": 6,
+      "name": "Player 6",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player6.png",
+      "age": 24,
+      "mobile_number": "9000000006"
+    },
+    {
+      "id": 7,
+      "name": "Player 7",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player7.png",
+      "age": 25,
+      "mobile_number": "9000000007"
+    },
+    {
+      "id": 8,
+      "name": "Player 8",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player8.png",
+      "age": 26,
+      "mobile_number": "9000000008"
+    },
+    {
+      "id": 9,
+      "name": "Player 9",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player9.png",
+      "age": 27,
+      "mobile_number": "9000000009"
+    },
+    {
+      "id": 10,
+      "name": "Player 10",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player10.png",
+      "age": 28,
+      "mobile_number": "9000000010"
+    },
+    {
+      "id": 11,
+      "name": "Player 11",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player11.png",
+      "age": 29,
+      "mobile_number": "9000000011"
+    },
+    {
+      "id": 12,
+      "name": "Player 12",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player12.png",
+      "age": 30,
+      "mobile_number": "9000000012"
+    },
+    {
+      "id": 13,
+      "name": "Player 13",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player13.png",
+      "age": 31,
+      "mobile_number": "9000000013"
+    },
+    {
+      "id": 14,
+      "name": "Player 14",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player14.png",
+      "age": 32,
+      "mobile_number": "9000000014"
+    },
+    {
+      "id": 15,
+      "name": "Player 15",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player15.png",
+      "age": 33,
+      "mobile_number": "9000000015"
+    },
+    {
+      "id": 16,
+      "name": "Player 16",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player16.png",
+      "age": 34,
+      "mobile_number": "9000000016"
+    },
+    {
+      "id": 17,
+      "name": "Player 17",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player17.png",
+      "age": 35,
+      "mobile_number": "9000000017"
+    },
+    {
+      "id": 18,
+      "name": "Player 18",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player18.png",
+      "age": 18,
+      "mobile_number": "9000000018"
+    },
+    {
+      "id": 19,
+      "name": "Player 19",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player19.png",
+      "age": 19,
+      "mobile_number": "9000000019"
+    },
+    {
+      "id": 20,
+      "name": "Player 20",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player20.png",
+      "age": 20,
+      "mobile_number": "9000000020"
+    },
+    {
+      "id": 21,
+      "name": "Player 21",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player21.png",
+      "age": 21,
+      "mobile_number": "9000000021"
+    },
+    {
+      "id": 22,
+      "name": "Player 22",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player22.png",
+      "age": 22,
+      "mobile_number": "9000000022"
+    },
+    {
+      "id": 23,
+      "name": "Player 23",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player23.png",
+      "age": 23,
+      "mobile_number": "9000000023"
+    },
+    {
+      "id": 24,
+      "name": "Player 24",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player24.png",
+      "age": 24,
+      "mobile_number": "9000000024"
+    },
+    {
+      "id": 25,
+      "name": "Player 25",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player25.png",
+      "age": 25,
+      "mobile_number": "9000000025"
+    },
+    {
+      "id": 26,
+      "name": "Player 26",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player26.png",
+      "age": 26,
+      "mobile_number": "9000000026"
+    },
+    {
+      "id": 27,
+      "name": "Player 27",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player27.png",
+      "age": 27,
+      "mobile_number": "9000000027"
+    },
+    {
+      "id": 28,
+      "name": "Player 28",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player28.png",
+      "age": 28,
+      "mobile_number": "9000000028"
+    },
+    {
+      "id": 29,
+      "name": "Player 29",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player29.png",
+      "age": 29,
+      "mobile_number": "9000000029"
+    },
+    {
+      "id": 30,
+      "name": "Player 30",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player30.png",
+      "age": 30,
+      "mobile_number": "9000000030"
+    },
+    {
+      "id": 31,
+      "name": "Player 31",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player31.png",
+      "age": 31,
+      "mobile_number": "9000000031"
+    },
+    {
+      "id": 32,
+      "name": "Player 32",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player32.png",
+      "age": 32,
+      "mobile_number": "9000000032"
+    },
+    {
+      "id": 33,
+      "name": "Player 33",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player33.png",
+      "age": 33,
+      "mobile_number": "9000000033"
+    },
+    {
+      "id": 34,
+      "name": "Player 34",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player34.png",
+      "age": 34,
+      "mobile_number": "9000000034"
+    },
+    {
+      "id": 35,
+      "name": "Player 35",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player35.png",
+      "age": 35,
+      "mobile_number": "9000000035"
+    },
+    {
+      "id": 36,
+      "name": "Player 36",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player36.png",
+      "age": 18,
+      "mobile_number": "9000000036"
+    },
+    {
+      "id": 37,
+      "name": "Player 37",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player37.png",
+      "age": 19,
+      "mobile_number": "9000000037"
+    },
+    {
+      "id": 38,
+      "name": "Player 38",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player38.png",
+      "age": 20,
+      "mobile_number": "9000000038"
+    },
+    {
+      "id": 39,
+      "name": "Player 39",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player39.png",
+      "age": 21,
+      "mobile_number": "9000000039"
+    },
+    {
+      "id": 40,
+      "name": "Player 40",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player40.png",
+      "age": 22,
+      "mobile_number": "9000000040"
+    },
+    {
+      "id": 41,
+      "name": "Player 41",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player41.png",
+      "age": 23,
+      "mobile_number": "9000000041"
+    },
+    {
+      "id": 42,
+      "name": "Player 42",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player42.png",
+      "age": 24,
+      "mobile_number": "9000000042"
+    },
+    {
+      "id": 43,
+      "name": "Player 43",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player43.png",
+      "age": 25,
+      "mobile_number": "9000000043"
+    },
+    {
+      "id": 44,
+      "name": "Player 44",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player44.png",
+      "age": 26,
+      "mobile_number": "9000000044"
+    },
+    {
+      "id": 45,
+      "name": "Player 45",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player45.png",
+      "age": 27,
+      "mobile_number": "9000000045"
+    },
+    {
+      "id": 46,
+      "name": "Player 46",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player46.png",
+      "age": 28,
+      "mobile_number": "9000000046"
+    },
+    {
+      "id": 47,
+      "name": "Player 47",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player47.png",
+      "age": 29,
+      "mobile_number": "9000000047"
+    },
+    {
+      "id": 48,
+      "name": "Player 48",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player48.png",
+      "age": 30,
+      "mobile_number": "9000000048"
+    },
+    {
+      "id": 49,
+      "name": "Player 49",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player49.png",
+      "age": 31,
+      "mobile_number": "9000000049"
+    },
+    {
+      "id": 50,
+      "name": "Player 50",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player50.png",
+      "age": 32,
+      "mobile_number": "9000000050"
+    },
+    {
+      "id": 51,
+      "name": "Player 51",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player51.png",
+      "age": 33,
+      "mobile_number": "9000000051"
+    },
+    {
+      "id": 52,
+      "name": "Player 52",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player52.png",
+      "age": 34,
+      "mobile_number": "9000000052"
+    },
+    {
+      "id": 53,
+      "name": "Player 53",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player53.png",
+      "age": 35,
+      "mobile_number": "9000000053"
+    },
+    {
+      "id": 54,
+      "name": "Player 54",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player54.png",
+      "age": 18,
+      "mobile_number": "9000000054"
+    },
+    {
+      "id": 55,
+      "name": "Player 55",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player55.png",
+      "age": 19,
+      "mobile_number": "9000000055"
+    },
+    {
+      "id": 56,
+      "name": "Player 56",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player56.png",
+      "age": 20,
+      "mobile_number": "9000000056"
+    },
+    {
+      "id": 57,
+      "name": "Player 57",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player57.png",
+      "age": 21,
+      "mobile_number": "9000000057"
+    },
+    {
+      "id": 58,
+      "name": "Player 58",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player58.png",
+      "age": 22,
+      "mobile_number": "9000000058"
+    },
+    {
+      "id": 59,
+      "name": "Player 59",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player59.png",
+      "age": 23,
+      "mobile_number": "9000000059"
+    },
+    {
+      "id": 60,
+      "name": "Player 60",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player60.png",
+      "age": 24,
+      "mobile_number": "9000000060"
+    },
+    {
+      "id": 61,
+      "name": "Player 61",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player61.png",
+      "age": 25,
+      "mobile_number": "9000000061"
+    },
+    {
+      "id": 62,
+      "name": "Player 62",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player62.png",
+      "age": 26,
+      "mobile_number": "9000000062"
+    },
+    {
+      "id": 63,
+      "name": "Player 63",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player63.png",
+      "age": 27,
+      "mobile_number": "9000000063"
+    },
+    {
+      "id": 64,
+      "name": "Player 64",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player64.png",
+      "age": 28,
+      "mobile_number": "9000000064"
+    },
+    {
+      "id": 65,
+      "name": "Player 65",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player65.png",
+      "age": 29,
+      "mobile_number": "9000000065"
+    },
+    {
+      "id": 66,
+      "name": "Player 66",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player66.png",
+      "age": 30,
+      "mobile_number": "9000000066"
+    },
+    {
+      "id": 67,
+      "name": "Player 67",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player67.png",
+      "age": 31,
+      "mobile_number": "9000000067"
+    },
+    {
+      "id": 68,
+      "name": "Player 68",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player68.png",
+      "age": 32,
+      "mobile_number": "9000000068"
+    },
+    {
+      "id": 69,
+      "name": "Player 69",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player69.png",
+      "age": 33,
+      "mobile_number": "9000000069"
+    },
+    {
+      "id": 70,
+      "name": "Player 70",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player70.png",
+      "age": 34,
+      "mobile_number": "9000000070"
+    },
+    {
+      "id": 71,
+      "name": "Player 71",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player71.png",
+      "age": 35,
+      "mobile_number": "9000000071"
+    },
+    {
+      "id": 72,
+      "name": "Player 72",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player72.png",
+      "age": 18,
+      "mobile_number": "9000000072"
+    },
+    {
+      "id": 73,
+      "name": "Player 73",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player73.png",
+      "age": 19,
+      "mobile_number": "9000000073"
+    },
+    {
+      "id": 74,
+      "name": "Player 74",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player74.png",
+      "age": 20,
+      "mobile_number": "9000000074"
+    },
+    {
+      "id": 75,
+      "name": "Player 75",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player75.png",
+      "age": 21,
+      "mobile_number": "9000000075"
+    },
+    {
+      "id": 76,
+      "name": "Player 76",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player76.png",
+      "age": 22,
+      "mobile_number": "9000000076"
+    },
+    {
+      "id": 77,
+      "name": "Player 77",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player77.png",
+      "age": 23,
+      "mobile_number": "9000000077"
+    },
+    {
+      "id": 78,
+      "name": "Player 78",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player78.png",
+      "age": 24,
+      "mobile_number": "9000000078"
+    },
+    {
+      "id": 79,
+      "name": "Player 79",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player79.png",
+      "age": 25,
+      "mobile_number": "9000000079"
+    },
+    {
+      "id": 80,
+      "name": "Player 80",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player80.png",
+      "age": 26,
+      "mobile_number": "9000000080"
+    },
+    {
+      "id": 81,
+      "name": "Player 81",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player81.png",
+      "age": 27,
+      "mobile_number": "9000000081"
+    },
+    {
+      "id": 82,
+      "name": "Player 82",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player82.png",
+      "age": 28,
+      "mobile_number": "9000000082"
+    },
+    {
+      "id": 83,
+      "name": "Player 83",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player83.png",
+      "age": 29,
+      "mobile_number": "9000000083"
+    },
+    {
+      "id": 84,
+      "name": "Player 84",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player84.png",
+      "age": 30,
+      "mobile_number": "9000000084"
+    },
+    {
+      "id": 85,
+      "name": "Player 85",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player85.png",
+      "age": 31,
+      "mobile_number": "9000000085"
+    },
+    {
+      "id": 86,
+      "name": "Player 86",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player86.png",
+      "age": 32,
+      "mobile_number": "9000000086"
+    },
+    {
+      "id": 87,
+      "name": "Player 87",
+      "role": "All-Rounder",
+      "base_price": 1000,
+      "photo": "/images/player87.png",
+      "age": 33,
+      "mobile_number": "9000000087"
+    },
+    {
+      "id": 88,
+      "name": "Player 88",
+      "role": "Wicketkeeper",
+      "base_price": 1000,
+      "photo": "/images/player88.png",
+      "age": 34,
+      "mobile_number": "9000000088"
+    },
+    {
+      "id": 89,
+      "name": "Player 89",
+      "role": "Batsman",
+      "base_price": 1000,
+      "photo": "/images/player89.png",
+      "age": 35,
+      "mobile_number": "9000000089"
+    },
+    {
+      "id": 90,
+      "name": "Player 90",
+      "role": "Bowler",
+      "base_price": 1000,
+      "photo": "/images/player90.png",
+      "age": 18,
+      "mobile_number": "9000000090"
+    }
   ]
 }

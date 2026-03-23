@@ -10,6 +10,7 @@ function App() {
   const [socket, setSocket] = useState(null);
   const [currentAuction, setCurrentAuction] = useState({ player: null, currentBid: 0 });
   const [auctionError, setAuctionError] = useState(null);
+  const [selectedTeamDetails, setSelectedTeamDetails] = useState(null);
 
   // Determine which mode to run in (dashboard or auctioneer)
   const mode = process.env.REACT_APP_MODE || "both";
@@ -66,6 +67,7 @@ function App() {
         setPlayers(prevPlayers => prevPlayers.map(p => p.id === data.playerId ? { ...p, sold_to_team: data.teamId } : p));
       }
 
+      // On sell, clear current auction immediately so dashboard returns to teams-only view.
       setCurrentAuction({ player: null, currentBid: 0 });
 
       // If we still don't have a local team update, refresh from server
@@ -83,7 +85,13 @@ function App() {
     });
 
     socket.on("auctionError", (data) => {
-      setAuctionError(data?.message || "Auction error occurred");
+      const message = data?.message || "Auction error occurred";
+      if (/maximum\s+15\s+players/i.test(message)) {
+        window.alert("Maximum players reached for this team.");
+        return;
+      }
+
+      setAuctionError(message);
       setTimeout(() => setAuctionError(null), 5000);
     });
 
@@ -97,11 +105,15 @@ function App() {
       setCurrentAuction(prev => ({ ...prev, currentBid: data.currentBid }));
     });
 
+    socket.on("teamDetailsSelected", (data) => {
+      setSelectedTeamDetails(data || null);
+    });
+
     // Refresh data when refresh event is received
     socket.on("refresh", async () => {
-      console.log('Refresh event received, updating data');
       setTeams(await getTeams());
       setPlayers(await getPlayers());
+      setCurrentAuction(await getCurrentAuction());
     });
 
     return () => {
@@ -109,18 +121,20 @@ function App() {
       socket.off("databaseReset");
       socket.off("playerSelected");
       socket.off("bidUpdated");
+      socket.off("teamDetailsSelected");
+      socket.off("refresh");
     };
   }, [socket]);
 
   return (
     <div>
       {isDashboardMode ? (
-        <Dashboard teams={teams} players={players} currentAuction={currentAuction} socket={socket} auctionError={auctionError} />
+        <Dashboard teams={teams} players={players} currentAuction={currentAuction} socket={socket} auctionError={auctionError} selectedTeamDetails={selectedTeamDetails} onCloseTeamDetails={() => setSelectedTeamDetails(null)} />
       ) : isAuctioneerMode ? (
         <AuctioneerPanel teams={teams} players={players} socket={socket} setTeams={setTeams} setPlayers={setPlayers} />
       ) : (
         <div style={{ display: "flex", flexDirection: "row" }}>
-          <Dashboard teams={teams} players={players} currentAuction={currentAuction} socket={socket} auctionError={auctionError} />
+          <Dashboard teams={teams} players={players} currentAuction={currentAuction} socket={socket} auctionError={auctionError} selectedTeamDetails={selectedTeamDetails} onCloseTeamDetails={() => setSelectedTeamDetails(null)} />
           <AuctioneerPanel teams={teams} players={players} socket={socket} setTeams={setTeams} setPlayers={setPlayers} />
         </div>
       )}
