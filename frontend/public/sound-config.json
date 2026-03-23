@@ -1,0 +1,17 @@
+{
+  "sounds": {
+    "playerSold": "/sounds/player-sold.mp3",
+    "auctionStart": "/sounds/auction-start.wav",
+    "bidIncrease": "/sounds/bid-increase.mp3"
+  },
+  "animations": {
+    "fireParticles": true,
+    "celebrationDuration": 5000,
+    "enableSounds": true
+  },
+  "effects": {
+    "screenShake": false,
+    "colorPulse": true,
+    "emojiRain": true
+  }
+}
