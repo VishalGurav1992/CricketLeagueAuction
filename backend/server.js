@@ -113,6 +113,7 @@ const fetchTeamDetails = (teamId, callback) => {
         }));
 
         callback(null, {
+          team_id: teamRow.id,
           owner_name: teamRow.owner_name,
           team_name: teamRow.name,
           players

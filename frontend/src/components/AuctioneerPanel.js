@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { sellPlayer, selectPlayerForAuction, updateBid } from "../api";
 
 export default function AuctioneerPanel({ teams, players, socket, setTeams, setPlayers }) {
@@ -6,6 +6,12 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [bid, setBid] = useState(0);
   const [message, setMessage] = useState("");
+  const [heartbeatEnabled, setHeartbeatEnabled] = useState(false);
+  const heartbeatEnabledRef = useRef(false);
+  const bidClickCountRef = useRef(0);
+  const heartbeatIntervalRef = useRef(null);
+  const audioCtxRef = useRef(null);
+  const heartbeatAudioRef = useRef(null);
 
   const getAvailablePlayers = () => {
     return players
@@ -28,6 +34,12 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
       setSelectedPlayer(String(availablePlayers[0].id));
     }
   }, [players, selectedPlayer]);
+
+  // Reset heartbeat and click count when player changes
+  useEffect(() => {
+    stopHeartbeat();
+    bidClickCountRef.current = 0;
+  }, [selectedPlayer]);
 
   // Auto-update bid amount when player is selected
   useEffect(() => {
@@ -53,6 +65,10 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
 
   const handleSell = async () => {
     if (!selectedPlayer || !selectedTeam || bid <= 0) return;
+    stopHeartbeat();
+    heartbeatEnabledRef.current = false;
+    setHeartbeatEnabled(false);
+    bidClickCountRef.current = 0;
 
     const availablePlayers = getAvailablePlayers();
     const currentIndex = availablePlayers.findIndex(p => p.id == selectedPlayer);
@@ -102,8 +118,97 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
     }
   };
 
+  const toggleHeartbeat = () => {
+    const next = !heartbeatEnabledRef.current;
+    heartbeatEnabledRef.current = next;
+    setHeartbeatEnabled(next);
+    if (next) {
+      // Create and play directly in the user gesture handler
+      if (!heartbeatAudioRef.current) {
+        heartbeatAudioRef.current = new Audio('/sounds/heartbeat.mp3');
+        heartbeatAudioRef.current.loop = true;
+        heartbeatAudioRef.current.volume = 0.85;
+      }
+      heartbeatAudioRef.current.currentTime = 0;
+      heartbeatAudioRef.current.play();
+    } else {
+      stopHeartbeat();
+    }
+  };
+
+  const playOneBeat = () => {
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+
+    // S1 "LUB" - deep thump
+    const o1 = ctx.createOscillator();
+    const g1 = ctx.createGain();
+    o1.type = 'sine';
+    o1.frequency.setValueAtTime(200, now);
+    o1.frequency.exponentialRampToValueAtTime(40, now + 0.2);
+    g1.gain.setValueAtTime(1.0, now);
+    g1.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    o1.connect(g1); g1.connect(ctx.destination);
+    o1.start(now); o1.stop(now + 0.22);
+
+    // S2 "dub" - softer echo 200ms later
+    const o2 = ctx.createOscillator();
+    const g2 = ctx.createGain();
+    o2.type = 'sine';
+    o2.frequency.setValueAtTime(160, now + 0.2);
+    o2.frequency.exponentialRampToValueAtTime(40, now + 0.38);
+    g2.gain.setValueAtTime(0.55, now + 0.2);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+    o2.connect(g2); g2.connect(ctx.destination);
+    o2.start(now + 0.2); o2.stop(now + 0.4);
+
+    // Noise click at S1 attack for realism
+    const bufSize = Math.ceil(ctx.sampleRate * 0.025);
+    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) d[i] = (Math.random() * 2 - 1);
+    const ns = ctx.createBufferSource();
+    ns.buffer = buf;
+    const nf = ctx.createBiquadFilter();
+    nf.type = 'lowpass'; nf.frequency.value = 300;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.35, now);
+    ng.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
+    ns.connect(nf); nf.connect(ng); ng.connect(ctx.destination);
+    ns.start(now); ns.stop(now + 0.025);
+  };
+
+  const startHeartbeat = () => {
+    if (!heartbeatEnabledRef.current) return;
+    if (heartbeatAudioRef.current && !heartbeatAudioRef.current.paused) return;
+    if (!heartbeatAudioRef.current) {
+      heartbeatAudioRef.current = new Audio('/sounds/heartbeat.mp3');
+      heartbeatAudioRef.current.loop = true;
+      heartbeatAudioRef.current.volume = 0.85;
+    }
+    heartbeatAudioRef.current.currentTime = 0;
+    heartbeatAudioRef.current.play().catch(() => {});
+  };
+
+  const stopHeartbeat = () => {
+    if (heartbeatAudioRef.current) {
+      heartbeatAudioRef.current.pause();
+      heartbeatAudioRef.current.currentTime = 0;
+    }
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null;
+    }
+  };
+
   const incrementBid = (amount) => {
     setBid(prevBid => prevBid + amount);
+    bidClickCountRef.current += 1;
+    if (bidClickCountRef.current > 5) {
+      startHeartbeat();
+    }
   };
 
   const decrementBid = (amount) => {
@@ -116,8 +221,32 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
   };
 
   return (
-    <div style={{ flex: 1, padding: 20, background: "#f4f4f4" }}>
-      <h2>Auctioneer Panel</h2>
+    <div style={{ flex: 1, padding: 20, background: "#f4f4f4", position: "relative" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+        <h2 style={{ margin: 0 }}>Auctioneer Panel</h2>
+        {/* Heartbeat toggle */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#222", borderRadius: 20, padding: "6px 14px", boxShadow: "0 2px 8px rgba(0,0,0,0.18)" }}>
+          <span style={{ color: "#f1e9cc", fontSize: 13, fontWeight: "bold", letterSpacing: 0.5 }}>❤️ Heartbeat</span>
+          <div
+            onClick={toggleHeartbeat}
+            style={{
+              width: 44, height: 24, borderRadius: 12, cursor: "pointer", position: "relative",
+              background: heartbeatEnabled ? "#e53935" : "#555",
+              transition: "background 0.25s",
+              boxShadow: heartbeatEnabled ? "0 0 8px rgba(229,57,53,0.7)" : "none"
+            }}
+          >
+            <div style={{
+              position: "absolute", top: 3, left: heartbeatEnabled ? 23 : 3,
+              width: 18, height: 18, borderRadius: "50%", background: "#fff",
+              transition: "left 0.25s", boxShadow: "0 1px 4px rgba(0,0,0,0.3)"
+            }} />
+          </div>
+          <span style={{ color: heartbeatEnabled ? "#e53935" : "#888", fontSize: 12, fontWeight: "bold", minWidth: 24 }}>
+            {heartbeatEnabled ? "ON" : "OFF"}
+          </span>
+        </div>
+      </div>
       {message && <p style={{ color: message.includes("Error") ? "red" : "green", fontWeight: "bold" }}>{message}</p>}
       
       <div style={{ marginBottom: 20 }}>

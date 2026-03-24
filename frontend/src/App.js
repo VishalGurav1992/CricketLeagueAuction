@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 import Dashboard from "./components/Dashboard";
 import AuctioneerPanel from "./components/AuctioneerPanel";
@@ -11,6 +11,9 @@ function App() {
   const [currentAuction, setCurrentAuction] = useState({ player: null, currentBid: 0 });
   const [auctionError, setAuctionError] = useState(null);
   const [selectedTeamDetails, setSelectedTeamDetails] = useState(null);
+  const selectedTeamIdRef = useRef(null);
+  const selectedTeamDetailsRef = useRef(null);
+  const teamsRef = useRef([]);
 
   // Determine which mode to run in (dashboard or auctioneer)
   const mode = process.env.REACT_APP_MODE || "both";
@@ -34,11 +37,29 @@ function App() {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    teamsRef.current = teams;
+  }, [teams]);
+
+  useEffect(() => {
+    selectedTeamDetailsRef.current = selectedTeamDetails;
+  }, [selectedTeamDetails]);
+
+  useEffect(() => {
+    selectedTeamIdRef.current = selectedTeamDetails?.team_id ?? null;
+    if (!selectedTeamIdRef.current && selectedTeamDetails?.team_name) {
+      const match = teamsRef.current.find(
+        (t) => String(t.name || "").toLowerCase() === String(selectedTeamDetails.team_name || "").toLowerCase()
+      );
+      selectedTeamIdRef.current = match?.id ?? null;
+    }
+  }, [selectedTeamDetails, teams]);
+
   // Listen for real-time updates from server
   useEffect(() => {
     if (!socket) return;
 
-    socket.on("playerSold", async (data) => {
+    const handlePlayerSold = async (data) => {
       // Immediate local update of teams without waiting for API full refresh
       if (data?.team) {
         setTeams(prevTeams => {
@@ -74,17 +95,18 @@ function App() {
       if (!data?.team) {
         setTeams(await getTeams());
       }
-    });
+    };
 
-    socket.on("databaseReset", async (data) => {
+    const handleDatabaseReset = async () => {
       // Refresh teams and players when database is reset
       setTeams(await getTeams());
       setPlayers(await getPlayers());
       setCurrentAuction({ player: null, currentBid: 0 });
       setAuctionError(null);
-    });
+      setSelectedTeamDetails(null);
+    };
 
-    socket.on("auctionError", (data) => {
+    const handleAuctionError = (data) => {
       const message = data?.message || "Auction error occurred";
       if (/maximum\s+15\s+players/i.test(message)) {
         window.alert("Maximum players reached for this team.");
@@ -93,36 +115,58 @@ function App() {
 
       setAuctionError(message);
       setTimeout(() => setAuctionError(null), 5000);
-    });
+    };
 
-    socket.on("playerSelected", (data) => {
+    const handlePlayerSelected = (data) => {
       // Update current auction when player is selected
       setCurrentAuction(data);
-    });
+    };
 
-    socket.on("bidUpdated", (data) => {
+    const handleBidUpdated = (data) => {
       // Update current bid when bid changes
       setCurrentAuction(prev => ({ ...prev, currentBid: data.currentBid }));
-    });
+    };
 
-    socket.on("teamDetailsSelected", (data) => {
-      setSelectedTeamDetails(data || null);
-    });
+    const handleTeamDetailsSelected = (data) => {
+      if (!data) {
+        setSelectedTeamDetails(null);
+        return;
+      }
+
+      let resolvedTeamId = data.team_id ?? null;
+      if (!resolvedTeamId && data.team_name) {
+        const match = teamsRef.current.find(
+          (t) => String(t.name || "").toLowerCase() === String(data.team_name || "").toLowerCase()
+        );
+        resolvedTeamId = match?.id ?? null;
+      }
+
+      setSelectedTeamDetails({ ...data, team_id: resolvedTeamId });
+    };
 
     // Refresh data when refresh event is received
-    socket.on("refresh", async () => {
+    const handleRefresh = async () => {
       setTeams(await getTeams());
       setPlayers(await getPlayers());
       setCurrentAuction(await getCurrentAuction());
-    });
+    };
+
+    socket.on("playerSold", handlePlayerSold);
+    socket.on("databaseReset", handleDatabaseReset);
+    socket.on("auctionError", handleAuctionError);
+    socket.on("playerSelected", handlePlayerSelected);
+    socket.on("bidUpdated", handleBidUpdated);
+    socket.on("teamDetailsSelected", handleTeamDetailsSelected);
+    socket.on("refresh", handleRefresh);
 
     return () => {
-      socket.off("playerSold");
-      socket.off("databaseReset");
-      socket.off("playerSelected");
-      socket.off("bidUpdated");
-      socket.off("teamDetailsSelected");
-      socket.off("refresh");
+      socket.off("playerSold", handlePlayerSold);
+      socket.off("databaseReset", handleDatabaseReset);
+      socket.off("auctionError", handleAuctionError);
+      socket.off("playerSelected", handlePlayerSelected);
+      socket.off("bidUpdated", handleBidUpdated);
+      socket.off("teamDetailsSelected", handleTeamDetailsSelected);
+      socket.off("refresh", handleRefresh);
     };
   }, [socket]);
 

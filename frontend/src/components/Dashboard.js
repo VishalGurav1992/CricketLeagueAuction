@@ -363,45 +363,15 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
         {/* Auction Zone - 40% height */}
         <div style={{ flex: "0 0 40%", minHeight: 0, position: "relative" }}>
           {displayedAuction?.player && (
-            <div
-              key={`${displayedAuction.player.id}-${auctionCardAnimSeed}`}
-              style={{
-                position: "absolute",
-                left: "50%",
-                bottom: "8px",
-                width: "min(980px, calc(100% - 24px))",
-                borderRadius: "14px",
-                padding: "0 10px 10px",
-                background: "linear-gradient(180deg, rgba(22,28,70,0.98) 0%, rgba(10,12,32,0.98) 52%, rgba(7,9,24,0.98) 100%)",
-                border: "1px solid rgba(225,195,120,0.78)",
-                boxShadow: "0 18px 48px rgba(0,0,0,0.52), inset 0 2px 0 rgba(255,255,255,0.12), inset 0 -2px 0 rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.04)",
-                transform: showAuctionCard ? "translateX(-50%) translateY(0) scale(1)" : "translateX(-50%) translateY(28px) scale(0.98)",
-                opacity: showAuctionCard ? 1 : 0,
-                transition: "transform 300ms ease, opacity 300ms ease",
-                animation: showAuctionCard ? "auctionCardIn 420ms cubic-bezier(0.16, 1, 0.3, 1)" : "none",
-                zIndex: 20,
-                pointerEvents: "none"
-              }}
-            >
-              <div
-                style={{
-                  position: "absolute",
-                  left: 10,
-                  right: 10,
-                  top: 0,
-                  height: 5,
-                  borderTopLeftRadius: 10,
-                  borderTopRightRadius: 10,
-                  background: "linear-gradient(90deg, rgba(236,213,144,0.55), rgba(255,245,205,0.78), rgba(236,213,144,0.55))"
-                }}
-              />
+            <>
+              {/* Player Photo - outside clip path */}
               <img
                 src={`http://localhost:5000${displayedAuction.player.photo}`}
                 alt={displayedAuction.player.name}
                 style={{
                   position: "absolute",
                   left: "50%",
-                  top: "-93px",
+                  bottom: "calc(8px + 94px + 10px)",
                   transform: "translateX(-50%)",
                   width: "94px",
                   height: "94px",
@@ -409,69 +379,83 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                   objectFit: "cover",
                   border: "4px solid #d5bf7e",
                   boxShadow: "0 0 0 3px rgba(22,25,53,0.95), 0 10px 22px rgba(0,0,0,0.45)",
-                  background: "#101432"
+                  background: "#101432",
+                  zIndex: 21
                 }}
               />
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "1.05fr 1.35fr 1.05fr",
-                gap: 8,
-                alignItems: "stretch"
-              }}>
+              {/* Auction Card */}
+              <div
+                key={`${displayedAuction.player.id}-${auctionCardAnimSeed}`}
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  bottom: "8px",
+                  width: titleWidth ? `${Math.round(titleWidth)}px` : "100%",
+                  transform: showAuctionCard ? "translateX(-50%) translateY(0) scale(1)" : "translateX(-50%) translateY(28px) scale(0.98)",
+                  opacity: showAuctionCard ? 1 : 0,
+                  transition: "transform 300ms ease, opacity 300ms ease",
+                  animation: showAuctionCard ? "auctionCardIn 420ms cubic-bezier(0.16, 1, 0.3, 1)" : "none",
+                  zIndex: 20,
+                  pointerEvents: "none",
+                  boxShadow: "0 18px 48px rgba(0,0,0,0.52)"
+                }}
+              >
+                {/* Dark background content — clipped to trapezoid */}
                 <div style={{
-                  background: "linear-gradient(180deg, rgba(26,30,66,0.95), rgba(12,14,36,0.95))",
-                  border: "1px solid rgba(214,186,116,0.65)",
-                  borderRadius: 10,
-                  padding: "10px 12px",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                  alignItems: "center"
+                  clipPath: "polygon(0% 0%, 100% 0%, 92% 100%, 8% 100%)",
+                  background: "linear-gradient(180deg, rgba(22,28,70,0.98) 0%, rgba(10,12,32,0.98) 52%, rgba(7,9,24,0.98) 100%)",
+                  padding: "0 10px 10px",
+                  position: "relative"
                 }}>
-                  <div style={{ fontSize: 11, letterSpacing: 0.8, fontWeight: "bold", color: "#d7c48a" }}>ROLE</div>
-                  <div style={{ marginTop: 6, fontSize: "clamp(20px, 2.8vw, 34px)", color: "#f1e9cc", lineHeight: 1, fontWeight: "bold", textAlign: "center" }}>
-                    {displayedAuction.player.role}
-                  </div>
-                  <div style={{ marginTop: 10, fontSize: 11, letterSpacing: 0.8, fontWeight: "bold", color: "#d7c48a" }}>AGE</div>
-                  <div style={{ marginTop: 4, fontSize: "clamp(22px, 3vw, 40px)", color: "#f1e9cc", lineHeight: 1, fontWeight: "bold" }}>
-                    {displayedAuction.player.age ?? "-"}
-                  </div>
-                </div>
-
-                <div style={{
-                  background: "linear-gradient(180deg, rgba(29,35,82,0.96), rgba(14,17,46,0.96))",
-                  border: "1px solid rgba(230,200,126,0.72)",
-                  borderRadius: 10,
-                  padding: "10px 12px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  minWidth: 0
-                }}>
-                  <div style={{ minWidth: 0, flex: 1, textAlign: "center" }}>
-                    <div style={{ color: "#ffffff", fontSize: "clamp(28px, 3.5vw, 50px)", lineHeight: 1.05, fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {displayedAuction.player.name}
+                  <div style={{
+                    position: "absolute", left: 10, right: 10, top: 0, height: 5,
+                    background: "linear-gradient(90deg, rgba(236,213,144,0.55), rgba(255,245,205,0.78), rgba(236,213,144,0.55))"
+                  }} />
+                  <div style={{ display: "grid", gridTemplateColumns: "1.05fr 1.35fr 1.05fr", gap: 8, alignItems: "stretch" }}>
+                    <div style={{ background: "linear-gradient(180deg, rgba(26,30,66,0.95), rgba(12,14,36,0.95))", border: "1px solid rgba(214,186,116,0.65)", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+                      <div style={{ fontSize: 11, letterSpacing: 0.8, fontWeight: "bold", color: "#d7c48a" }}>ROLE</div>
+                      <div style={{ marginTop: 6, fontSize: "clamp(20px, 2.8vw, 34px)", color: "#f1e9cc", lineHeight: 1, fontWeight: "bold", textAlign: "center" }}>
+                        {displayedAuction.player.role}
+                      </div>
+                      <div style={{ marginTop: 10, fontSize: 11, letterSpacing: 0.8, fontWeight: "bold", color: "#d7c48a" }}>AGE</div>
+                      <div style={{ marginTop: 4, fontSize: "clamp(22px, 3vw, 40px)", color: "#f1e9cc", lineHeight: 1, fontWeight: "bold" }}>
+                        {displayedAuction.player.age ?? "-"}
+                      </div>
+                    </div>
+                    <div style={{ background: "linear-gradient(180deg, rgba(29,35,82,0.96), rgba(14,17,46,0.96))", border: "1px solid rgba(230,200,126,0.72)", borderRadius: 10, padding: "10px 12px", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0 }}>
+                      <div style={{ minWidth: 0, flex: 1, textAlign: "center" }}>
+                        <div style={{ color: "#ffffff", fontSize: "clamp(28px, 3.5vw, 50px)", lineHeight: 1.05, fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {displayedAuction.player.name}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ background: "linear-gradient(180deg, rgba(26,30,66,0.95), rgba(12,14,36,0.95))", border: "1px solid rgba(214,186,116,0.65)", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+                      <div style={{ fontSize: 11, letterSpacing: 0.8, fontWeight: "bold", color: "#d7c48a" }}>CURRENT BID</div>
+                      <div style={{ marginTop: 6, display: "flex", alignItems: "baseline", gap: "4px", justifyContent: "center" }}>
+                        <div style={{ fontSize: "clamp(24px, 3.4vw, 42px)", color: "#f1e9cc", lineHeight: 1, fontWeight: "bold" }}>
+                          {(displayedAuction.currentBid || 0).toLocaleString()}
+                        </div>
+                        <div style={{ fontSize: "clamp(8px, 0.8vw, 12px)", color: "#f1e9cc", fontWeight: "500" }}>coins</div>
+                      </div>
                     </div>
                   </div>
                 </div>
-
-                <div style={{
-                  background: "linear-gradient(180deg, rgba(26,30,66,0.95), rgba(12,14,36,0.95))",
-                  border: "1px solid rgba(214,186,116,0.65)",
-                  borderRadius: 10,
-                  padding: "10px 12px",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                  alignItems: "center"
-                }}>
-                  <div style={{ fontSize: 11, letterSpacing: 0.8, fontWeight: "bold", color: "#d7c48a" }}>CURRENT BID</div>
-                  <div style={{ marginTop: 6, fontSize: "clamp(24px, 3.4vw, 42px)", color: "#f1e9cc", lineHeight: 1, fontWeight: "bold" }}>
-                    ₹{(displayedAuction.currentBid || 0).toLocaleString()}
-                  </div>
-                </div>
+                {/* SVG border overlay — sits on top, not clipped, follows trapezoid exactly */}
+                <svg
+                  style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", overflow: "visible", pointerEvents: "none" }}
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                >
+                  <polygon
+                    points="0,0 100,0 92,100 8,100"
+                    fill="none"
+                    stroke="rgba(225,195,120,0.85)"
+                    strokeWidth="1.5"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </svg>
               </div>
-            </div>
+            </>
           )}
         </div>
       </div>
@@ -487,9 +471,12 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          zIndex: 900
+          zIndex: 900,
+          animation: "teamDetailsBackdropIn 420ms ease-out"
         }}>
-          <div style={{
+          <div
+            key={`team-details-${selectedTeamDetails.team_name || selectedTeamDetails.owner_name || "selected"}`}
+            style={{
             width: "min(1200px, calc(100% - 24px))",
             height: "96vh",
             overflow: "hidden",
@@ -501,7 +488,8 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
             position: "relative",
             display: "flex",
             flexDirection: "column",
-            gap: 6
+            gap: 6,
+            animation: "teamDetailsModalIn 2200ms cubic-bezier(0.22, 1, 0.36, 1)"
           }}>
             <div style={{ position: "absolute", right: 10, top: 10, display: "flex", gap: 8 }}>
               <button
@@ -835,6 +823,33 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
             100% {
               opacity: 1;
               transform: translateX(-50%) translateY(0) scale(1);
+              filter: blur(0);
+            }
+          }
+
+          @keyframes teamDetailsBackdropIn {
+            0% {
+              opacity: 0;
+            }
+            100% {
+              opacity: 1;
+            }
+          }
+
+          @keyframes teamDetailsModalIn {
+            0% {
+              opacity: 0;
+              transform: translateY(22px) scale(0.965);
+              filter: blur(1px);
+            }
+            60% {
+              opacity: 1;
+              transform: translateY(-2px) scale(1.006);
+              filter: blur(0);
+            }
+            100% {
+              opacity: 1;
+              transform: translateY(0) scale(1);
               filter: blur(0);
             }
           }
