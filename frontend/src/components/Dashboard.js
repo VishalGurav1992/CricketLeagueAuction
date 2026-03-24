@@ -44,11 +44,6 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
         });
         setShowCongratsPopup(true);
 
-        // Play sound effect
-        if (audioRef.current && soundConfig?.sounds?.playerSold && soundConfig?.animations?.enableSounds) {
-          audioRef.current.src = soundConfig.sounds.playerSold;
-          audioRef.current.play().catch(e => console.log('Audio play failed:', e));
-        }
 
         // Auto-hide popup after configured duration
         const duration = soundConfig?.animations?.celebrationDuration || 5000;
