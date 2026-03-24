@@ -9,6 +9,10 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
   const [showAuctionCard, setShowAuctionCard] = useState(false);
   const [auctionCardAnimSeed, setAuctionCardAnimSeed] = useState(0);
   const [titleWidth, setTitleWidth] = useState(null);
+  const [viewportSize, setViewportSize] = useState({
+    width: typeof window !== "undefined" ? window.innerWidth : 1280,
+    height: typeof window !== "undefined" ? window.innerHeight : 720,
+  });
   const audioRef = useRef(null);
   const hideAuctionTimerRef = useRef(null);
   const activeAuctionPlayerIdRef = useRef(null);
@@ -103,9 +107,18 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
       }
     };
 
+    const syncViewportSize = () => {
+      setViewportSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+
     syncTitleWidth();
+    syncViewportSize();
     window.addEventListener("resize", syncTitleWidth);
-    return () => window.removeEventListener("resize", syncTitleWidth);
+    window.addEventListener("resize", syncViewportSize);
+    return () => {
+      window.removeEventListener("resize", syncTitleWidth);
+      window.removeEventListener("resize", syncViewportSize);
+    };
   }, []);
 
   const teamDetailPlayers = selectedTeamDetails?.players || [];
@@ -119,6 +132,48 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
   const teamDetailCellPadding = "2px 4px";
   const teamDetailImageSize = 18;
   const teamDetailRowHeight = `calc((96vh - 190px) / ${TEAM_MAX_PLAYERS})`;
+
+  const isProjectorLayout = viewportSize.width <= 1280 || viewportSize.height <= 720;
+  const rootPadding = isProjectorLayout ? 10 : 16;
+  const rootGap = isProjectorLayout ? 8 : 12;
+  const headerMinHeight = isProjectorLayout ? 40 : 52;
+  const titleFontSize = isProjectorLayout ? "clamp(24px, 3.4vw, 42px)" : "clamp(33px, 4.8vw, 57px)";
+  const titleLetterSpacing = isProjectorLayout ? "0.5px" : "1px";
+  const togglePadding = isProjectorLayout ? "6px 10px" : "8px 12px";
+  const toggleFontSize = isProjectorLayout ? "11px" : "12px";
+  const tableHeaderFontSize = isProjectorLayout ? "clamp(14px, 1.25vw, 18px)" : "clamp(16px, 1.5vw, 21px)";
+  const tableBodyFontSize = isProjectorLayout ? "clamp(15px, 1.3vw, 19px)" : "clamp(17px, 1.6vw, 23px)";
+  const tableCellPadding = isProjectorLayout ? "5px" : "6px";
+  const teamPanelPadding = isProjectorLayout ? 6 : 8;
+  const auctionCardWidth = titleWidth ? Math.round(titleWidth) : viewportSize.width - (rootPadding * 2);
+  const auctionNamePanelWidth = Math.max(120, Math.floor((auctionCardWidth * 1.35) / 3.45) - 24);
+  const auctionPhotoSize = isProjectorLayout
+    ? Math.min(auctionNamePanelWidth, 160)
+    : Math.min(auctionNamePanelWidth, 230);
+  const auctionPhotoBottom = `calc(8px + ${auctionPhotoSize}px + 10px)`;
+  const auctionRoleFont = isProjectorLayout ? "clamp(17px, 2.2vw, 28px)" : "clamp(20px, 2.8vw, 34px)";
+  const auctionNameFont = isProjectorLayout ? "clamp(24px, 2.9vw, 40px)" : "clamp(28px, 3.5vw, 50px)";
+  const auctionMetricFont = isProjectorLayout ? "clamp(19px, 2.4vw, 32px)" : "clamp(22px, 3vw, 40px)";
+  const auctionBidFont = isProjectorLayout ? "clamp(22px, 2.8vw, 36px)" : "clamp(24px, 3.4vw, 42px)";
+  const teamPopupPadding = isProjectorLayout ? 6 : 10;
+  const teamPopupGap = isProjectorLayout ? 4 : 6;
+  const teamPopupButtonPadding = isProjectorLayout ? "5px 8px" : "6px 10px";
+  const teamPopupButtonFont = isProjectorLayout ? "12px" : "14px";
+  const teamPopupHeadingFont = isProjectorLayout ? "15px" : "17px";
+  const teamCardGap = isProjectorLayout ? "4px" : "clamp(4px, 0.7vw, 8px)";
+  const teamCardPadding = isProjectorLayout ? "4px 6px" : "6px 8px";
+  const teamCardNameFont = isProjectorLayout ? "clamp(11px, 0.95vw, 14px)" : "clamp(12px, 1.05vw, 17px)";
+  const teamHeaderNameFont = isProjectorLayout ? "clamp(15.84px, 1.368vw, 20.16px)" : "clamp(17.28px, 1.512vw, 24.48px)";
+  const teamPlayerNameFont = isProjectorLayout ? "clamp(14px, 1.2vw, 17px)" : "clamp(15px, 1.3vw, 22px)";
+  const teamPlayerMetaFont = isProjectorLayout ? "clamp(11px, 0.95vw, 13px)" : "clamp(12px, 1.05vw, 17px)";
+  const teamCardMetaFont = isProjectorLayout ? "clamp(9px, 0.74vw, 11px)" : "clamp(10px, 0.84vw, 13px)";
+  const teamCardBadgeSize = isProjectorLayout ? 20 : 24;
+  const teamCardBadgeFont = isProjectorLayout ? "11px" : "clamp(11px, 0.9vw, 14px)";
+  const teamCardImageSize = isProjectorLayout ? 20 : teamDetailImageSize + 6;
+  const teamTableWidth = `${Math.round(Math.min(viewportSize.width * 0.98, viewportSize.width))}px`;
+  const selectedTeamLogo = teams.find(
+    (t) => String(t.name || "").toLowerCase() === String(selectedTeamDetails?.team_name || "").toLowerCase()
+  )?.photo;
 
   const getTeamDetailsPdfFileName = () => {
     const teamName = (selectedTeamDetails?.team_name || "team-details")
@@ -245,7 +300,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
         height: "100vh",
         maxHeight: "100vh",
         overflow: "hidden",
-        padding: 16,
+        padding: rootPadding,
         boxSizing: "border-box",
         backgroundColor: "#f8f9fa",
         backgroundImage: isBackgroundEnabled
@@ -256,17 +311,17 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
         backgroundRepeat: "no-repeat",
         display: "flex",
         flexDirection: "column",
-        gap: 12
+        gap: rootGap
       }}
     >
-      <div style={{ position: "relative", minHeight: 52, display: "flex", alignItems: "flex-end", justifyContent: "center", marginBottom: 2 }}>
+      <div style={{ position: "relative", minHeight: headerMinHeight, display: "flex", alignItems: "flex-end", justifyContent: "center", marginBottom: isProjectorLayout ? 0 : 2 }}>
         <h1 ref={titleRef} className="dashboard-title" style={{
           textAlign: "center",
           color: "#ffffff",
           margin: 0,
-          fontSize: "clamp(33px, 4.8vw, 57px)",
+          fontSize: titleFontSize,
           lineHeight: 1.05,
-          letterSpacing: "1px",
+          letterSpacing: titleLetterSpacing,
           fontWeight: 900,
           textTransform: "uppercase",
           textShadow: "0 1px 0 #d8be7a, 0 2px 0 #bba062, 0 3px 0 #8d7646, 0 10px 18px rgba(0,0,0,0.55)"
@@ -281,8 +336,8 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
             top: 0,
             border: "none",
             borderRadius: "999px",
-            padding: "8px 12px",
-            fontSize: "12px",
+            padding: togglePadding,
+            fontSize: toggleFontSize,
             fontWeight: "bold",
             cursor: "pointer",
             background: isBackgroundEnabled ? "#198754" : "#6c757d",
@@ -311,78 +366,129 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
       )}
 
       <div className="dashboard-content" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-        {/* Teams Table - 60% height */}
+        {/* Teams Cards - 3 columns x 2 rows */}
         <div style={{ flex: "0 0 60%", minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center" }}>
           <div style={{
             flex: "0 1 auto",
             maxHeight: "100%",
-            overflowX: "hidden",
-            overflowY: "auto",
-            width: titleWidth ? `${Math.round(titleWidth)}px` : "100%",
-            maxWidth: "100%",
-            background: "linear-gradient(180deg, rgba(22,28,70,0.62) 0%, rgba(10,12,32,0.58) 100%)",
-            padding: 8,
+            overflow: "hidden",
+            width: teamTableWidth,
+            minWidth: teamTableWidth,
+            maxWidth: teamTableWidth,
+            background: "linear-gradient(180deg, rgba(22,28,70,0.84) 0%, rgba(10,12,32,0.82) 100%)",
+            padding: teamPanelPadding,
             borderRadius: 10,
             border: "1px solid rgba(225,195,120,0.6)",
             boxShadow: "0 10px 26px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)",
             backdropFilter: "blur(2px)"
           }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ backgroundColor: "rgba(17,22,56,0.55)", color: "#f1e9cc" }}>
-                <th style={{ padding: "8px 6px", border: "1px solid rgba(225,195,120,0.45)", textAlign: "left", fontSize: "clamp(16px, 1.5vw, 21px)", letterSpacing: 0.5 }}>Team</th>
-                <th style={{ padding: "8px 6px", border: "1px solid rgba(225,195,120,0.45)", textAlign: "right", fontSize: "clamp(16px, 1.5vw, 21px)", letterSpacing: 0.5 }}>Balance (Coins)</th>
-                <th style={{ padding: "8px 6px", border: "1px solid rgba(225,195,120,0.45)", textAlign: "right", fontSize: "clamp(16px, 1.5vw, 21px)", letterSpacing: 0.5 }}>Players</th>
-              </tr>
-            </thead>
-            <tbody>
-              {teams.map(team => (
-                <tr key={team.id} style={{ backgroundColor: "rgba(10,12,32,0.28)", borderBottom: "1px solid rgba(225,195,120,0.35)" }}>
-                  <td style={{ padding: "6px", border: "1px solid rgba(225,195,120,0.35)" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <img
-                        src={`http://localhost:5000${team.photo}`}
-                        alt={team.name}
-                        style={{ width: "clamp(22px, 2.2vw, 34px)", height: "clamp(22px, 2.2vw, 34px)", borderRadius: "50%", objectFit: "cover", border: "2px solid rgba(225,195,120,0.9)" }}
-                      />
-                      <span style={{ fontWeight: "bold", color: "#f8f4df", fontSize: "clamp(17px, 1.6vw, 23px)", lineHeight: 1.2, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>{team.name}</span>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gridTemplateRows: "repeat(2, minmax(0, 1fr))",
+              gap: teamCardGap,
+              minHeight: 0
+            }}>
+              {teams.slice(0, 6).map((team) => (
+                <div
+                  key={team.id}
+                  style={{
+                    position: "relative",
+                    background: "linear-gradient(180deg, rgba(22,28,70,0.98) 0%, rgba(10,12,32,0.98) 52%, rgba(7,9,24,0.98) 100%)",
+                    border: "1px solid rgba(225,195,120,0.65)",
+                    boxShadow: "0 10px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)",
+                    borderRadius: 10,
+                    overflow: "hidden",
+                    padding: teamCardPadding,
+                    minHeight: 0
+                  }}
+                >
+                  <div style={{
+                    position: "absolute",
+                    left: 10,
+                    right: 10,
+                    top: 0,
+                    height: 3,
+                    background: "linear-gradient(90deg, rgba(236,213,144,0.45), rgba(255,245,205,0.72), rgba(236,213,144,0.45))"
+                  }} />
+
+                  <div style={{ display: "flex", alignItems: "center", gap: isProjectorLayout ? 6 : 8, minWidth: 0 }}>
+                    <img
+                      src={`http://localhost:5000${team.photo}`}
+                      alt={team.name}
+                      style={{
+                        width: isProjectorLayout ? "clamp(34px, 2.8vw, 44px)" : "clamp(40px, 3.4vw, 56px)",
+                        height: isProjectorLayout ? "clamp(34px, 2.8vw, 44px)" : "clamp(40px, 3.4vw, 56px)",
+                        borderRadius: "50%",
+                        objectFit: "cover",
+                        border: "2px solid rgba(225,195,120,0.9)",
+                        background: "#101432",
+                        flex: "0 0 auto"
+                      }}
+                    />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{
+                        color: "#ffffff",
+                        fontSize: tableBodyFontSize,
+                        lineHeight: 1.08,
+                        fontWeight: "bold",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis"
+                      }}>
+                        {team.name}
+                      </div>
+                      <div style={{
+                        color: "#d7c48a",
+                        fontSize: teamCardMetaFont,
+                        marginTop: 1,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis"
+                      }}>
+                        Owner: {team.owner_name || "-"}
+                      </div>
                     </div>
-                  </td>
-                  <td style={{ padding: "6px", border: "1px solid rgba(225,195,120,0.35)", textAlign: "right", fontWeight: "bold", color: "#f1e9cc", fontSize: "clamp(17px, 1.5vw, 21px)", textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>
-                    {team.balance.toLocaleString()}
-                  </td>
-                  <td style={{ padding: "6px", border: "1px solid rgba(225,195,120,0.35)", textAlign: "right", color: "#f1e9cc", fontSize: "clamp(17px, 1.5vw, 21px)", textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>
-                    {getTeamPlayerCount(team.id)}
-                  </td>
-                </tr>
+                  </div>
+
+                  <div style={{
+                    marginTop: isProjectorLayout ? 4 : 6,
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: isProjectorLayout ? 4 : 6
+                  }}>
+                    <div style={{
+                      border: "1px solid rgba(225,195,120,0.45)",
+                      borderRadius: 6,
+                      padding: isProjectorLayout ? "4px 6px" : "5px 7px",
+                      background: "rgba(8,10,24,0.6)"
+                    }}>
+                      <div style={{ color: "#d7c48a", fontSize: tableHeaderFontSize, lineHeight: 1, fontWeight: "bold" }}>BALANCE</div>
+                      <div style={{ color: "#f1e9cc", marginTop: 2, fontSize: tableBodyFontSize, lineHeight: 1.05, fontWeight: "bold" }}>
+                        {Number(team.balance || 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={{
+                      border: "1px solid rgba(225,195,120,0.45)",
+                      borderRadius: 6,
+                      padding: isProjectorLayout ? "4px 6px" : "5px 7px",
+                      background: "rgba(8,10,24,0.6)"
+                    }}>
+                      <div style={{ color: "#d7c48a", fontSize: tableHeaderFontSize, lineHeight: 1, fontWeight: "bold" }}>PLAYERS</div>
+                      <div style={{ color: "#f1e9cc", marginTop: 2, fontSize: tableBodyFontSize, lineHeight: 1.05, fontWeight: "bold" }}>
+                        {getTeamPlayerCount(team.id)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </tbody>
-            </table>
+            </div>
           </div>
         </div>
         {/* Auction Zone - 40% height */}
         <div style={{ flex: "0 0 40%", minHeight: 0, position: "relative" }}>
           {displayedAuction?.player && (
             <>
-              {/* Player Photo - outside clip path */}
-              <img
-                src={`http://localhost:5000${displayedAuction.player.photo}`}
-                alt={displayedAuction.player.name}
-                style={{
-                  position: "absolute",
-                  left: "50%",
-                  bottom: "calc(8px + 94px + 10px)",
-                  transform: "translateX(-50%)",
-                  width: "94px",
-                  height: "94px",
-                  borderRadius: "12px",
-                  objectFit: "cover",
-                  border: "4px solid #d5bf7e",
-                  boxShadow: "0 0 0 3px rgba(22,25,53,0.95), 0 10px 22px rgba(0,0,0,0.45)",
-                  background: "#101432",
-                  zIndex: 21
-                }}
-              />
               {/* Auction Card */}
               <div
                 key={`${displayedAuction.player.id}-${auctionCardAnimSeed}`}
@@ -400,6 +506,24 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                   boxShadow: "0 18px 48px rgba(0,0,0,0.52)"
                 }}
               >
+                <img
+                  src={`http://localhost:5000${displayedAuction.player.photo}`}
+                  alt={displayedAuction.player.name}
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    top: `-${auctionPhotoSize}px`,
+                    transform: "translateX(-50%)",
+                    width: `${auctionPhotoSize}px`,
+                    height: `${auctionPhotoSize}px`,
+                    borderRadius: 0,
+                    objectFit: "cover",
+                    border: "1.5px solid rgba(225,195,120,0.85)",
+                    boxShadow: "0 0 0 1px rgba(225,195,120,0.35), 0 10px 22px rgba(0,0,0,0.45)",
+                    background: "#101432",
+                    zIndex: 21
+                  }}
+                />
                 {/* Dark background content — clipped to trapezoid */}
                 <div style={{
                   clipPath: "polygon(0% 0%, 100% 0%, 92% 100%, 8% 100%)",
@@ -414,17 +538,17 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                   <div style={{ display: "grid", gridTemplateColumns: "1.05fr 1.35fr 1.05fr", gap: 8, alignItems: "stretch" }}>
                     <div style={{ background: "linear-gradient(180deg, rgba(26,30,66,0.95), rgba(12,14,36,0.95))", border: "1px solid rgba(214,186,116,0.65)", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
                       <div style={{ fontSize: 11, letterSpacing: 0.8, fontWeight: "bold", color: "#d7c48a" }}>ROLE</div>
-                      <div style={{ marginTop: 6, fontSize: "clamp(20px, 2.8vw, 34px)", color: "#f1e9cc", lineHeight: 1, fontWeight: "bold", textAlign: "center" }}>
+                      <div style={{ marginTop: 6, fontSize: auctionRoleFont, color: "#f1e9cc", lineHeight: 1, fontWeight: "bold", textAlign: "center" }}>
                         {displayedAuction.player.role}
                       </div>
                       <div style={{ marginTop: 10, fontSize: 11, letterSpacing: 0.8, fontWeight: "bold", color: "#d7c48a" }}>AGE</div>
-                      <div style={{ marginTop: 4, fontSize: "clamp(22px, 3vw, 40px)", color: "#f1e9cc", lineHeight: 1, fontWeight: "bold" }}>
+                      <div style={{ marginTop: 4, fontSize: auctionMetricFont, color: "#f1e9cc", lineHeight: 1, fontWeight: "bold" }}>
                         {displayedAuction.player.age ?? "-"}
                       </div>
                     </div>
                     <div style={{ background: "linear-gradient(180deg, rgba(29,35,82,0.96), rgba(14,17,46,0.96))", border: "1px solid rgba(230,200,126,0.72)", borderRadius: 10, padding: "10px 12px", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0 }}>
                       <div style={{ minWidth: 0, flex: 1, textAlign: "center" }}>
-                        <div style={{ color: "#ffffff", fontSize: "clamp(28px, 3.5vw, 50px)", lineHeight: 1.05, fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <div style={{ color: "#ffffff", fontSize: auctionNameFont, lineHeight: 1.05, fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {displayedAuction.player.name}
                         </div>
                       </div>
@@ -432,7 +556,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                     <div style={{ background: "linear-gradient(180deg, rgba(26,30,66,0.95), rgba(12,14,36,0.95))", border: "1px solid rgba(214,186,116,0.65)", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
                       <div style={{ fontSize: 11, letterSpacing: 0.8, fontWeight: "bold", color: "#d7c48a" }}>CURRENT BID</div>
                       <div style={{ marginTop: 6, display: "flex", alignItems: "baseline", gap: "4px", justifyContent: "center" }}>
-                        <div style={{ fontSize: "clamp(24px, 3.4vw, 42px)", color: "#f1e9cc", lineHeight: 1, fontWeight: "bold" }}>
+                        <div style={{ fontSize: auctionBidFont, color: "#f1e9cc", lineHeight: 1, fontWeight: "bold" }}>
                           {(displayedAuction.currentBid || 0).toLocaleString()}
                         </div>
                         <div style={{ fontSize: "clamp(8px, 0.8vw, 12px)", color: "#f1e9cc", fontWeight: "500" }}>coins</div>
@@ -469,26 +593,28 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
           bottom: 0,
           background: "rgba(0,0,0,0.7)",
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          alignItems: "stretch",
+          justifyContent: "stretch",
           zIndex: 900,
           animation: "teamDetailsBackdropIn 420ms ease-out"
         }}>
           <div
             key={`team-details-${selectedTeamDetails.team_name || selectedTeamDetails.owner_name || "selected"}`}
             style={{
-            width: "min(1200px, calc(100% - 24px))",
-            height: "96vh",
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
             overflow: "hidden",
             background: "linear-gradient(180deg, rgba(22,28,70,0.98) 0%, rgba(10,12,32,0.98) 100%)",
             border: "1px solid rgba(225,195,120,0.65)",
-            borderRadius: 12,
-            padding: 10,
+            borderRadius: 0,
+            padding: teamPopupPadding,
+            boxSizing: "border-box",
             boxShadow: "0 12px 28px rgba(0,0,0,0.45)",
-            position: "relative",
             display: "flex",
             flexDirection: "column",
-            gap: 6,
+            gap: teamPopupGap,
             animation: "teamDetailsModalIn 2200ms cubic-bezier(0.22, 1, 0.36, 1)"
           }}>
             <div style={{ position: "absolute", right: 10, top: 10, display: "flex", gap: 8 }}>
@@ -497,10 +623,11 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                 style={{
                   border: "none",
                   borderRadius: 6,
-                  padding: "6px 10px",
+                  padding: teamPopupButtonPadding,
                   background: "#1d6f42",
                   color: "white",
                   fontWeight: "bold",
+                  fontSize: teamPopupButtonFont,
                   cursor: "pointer"
                 }}
               >
@@ -511,54 +638,235 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                 style={{
                   border: "none",
                   borderRadius: 6,
-                  padding: "6px 10px",
+                  padding: teamPopupButtonPadding,
                   background: "#8b1e1e",
                   color: "white",
                   fontWeight: "bold",
+                  fontSize: teamPopupButtonFont,
                   cursor: "pointer"
                 }}
               >
                 Close
               </button>
             </div>
-            <div style={{ color: "#f1e9cc", fontWeight: "bold", marginBottom: 2, paddingRight: 72, flex: "0 0 auto", lineHeight: 1.1 }}>
-              Owner: {selectedTeamDetails.owner_name || "-"} | Team: {selectedTeamDetails.team_name || "-"}
-            </div>
-            <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-              <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", color: "#f8f4df", tableLayout: "fixed", fontSize: teamDetailFontSize, lineHeight: 1 }}>
-                <thead>
-                  <tr style={{ background: "rgba(17,22,56,0.6)" }}>
-                    <th style={{ width: "4%", padding: teamDetailCellPadding, border: "1px solid rgba(225,195,120,0.35)", textAlign: "center", whiteSpace: "nowrap" }}>#</th>
-                    <th style={{ width: "6%", padding: teamDetailCellPadding, border: "1px solid rgba(225,195,120,0.35)", textAlign: "left", whiteSpace: "nowrap" }}>Photo</th>
-                    <th style={{ width: "18%", padding: teamDetailCellPadding, border: "1px solid rgba(225,195,120,0.35)", textAlign: "left", whiteSpace: "nowrap" }}>Name</th>
-                    <th style={{ width: "13%", padding: teamDetailCellPadding, border: "1px solid rgba(225,195,120,0.35)", textAlign: "left", whiteSpace: "nowrap" }}>Role</th>
-                    <th style={{ width: "14%", padding: teamDetailCellPadding, border: "1px solid rgba(225,195,120,0.35)", textAlign: "left", whiteSpace: "nowrap" }}>Sold Status</th>
-                    <th style={{ width: "13%", padding: teamDetailCellPadding, border: "1px solid rgba(225,195,120,0.35)", textAlign: "right", whiteSpace: "nowrap" }}>Sold Price</th>
-                    <th style={{ width: "7%", padding: teamDetailCellPadding, border: "1px solid rgba(225,195,120,0.35)", textAlign: "right", whiteSpace: "nowrap" }}>Age</th>
-                    <th style={{ width: "25%", padding: teamDetailCellPadding, border: "1px solid rgba(225,195,120,0.35)", textAlign: "left", whiteSpace: "nowrap" }}>Mobile Number</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div style={{ flex: 1, minHeight: 0, overflow: "hidden", paddingRight: 0 }}>
+              <div style={{
+                display: "grid",
+                gridTemplateRows: "1fr 5fr",
+                gap: teamCardGap,
+                height: "100%"
+              }}>
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                  gap: teamCardGap,
+                  minHeight: 0
+                }}>
+                  <div />
+                  <div style={{
+                    position: "relative",
+                    padding: teamCardPadding,
+                    minHeight: 0,
+                    display: "grid",
+                    gridTemplateRows: "80% 20%",
+                    alignItems: "stretch",
+                    gap: 0
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 0 }}>
+                      {selectedTeamLogo ? (
+                        <div style={{
+                          height: "100%",
+                          maxHeight: "100%",
+                          aspectRatio: "1 / 1",
+                          overflow: "hidden"
+                        }}>
+                          <img
+                            src={`http://localhost:5000${selectedTeamLogo}`}
+                            alt={selectedTeamDetails.team_name || "Team"}
+                            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                          />
+                        </div>
+                      ) : (
+                        <div style={{
+                          height: "100%",
+                          maxHeight: "100%",
+                          aspectRatio: "1 / 1",
+                          background: "transparent"
+                        }} />
+                      )}
+                    </div>
+                    <div style={{
+                      width: "100%",
+                      color: "#f1e9cc",
+                      fontWeight: "bold",
+                      fontSize: teamHeaderNameFont,
+                      lineHeight: 1.05,
+                      textAlign: "center",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis"
+                    }}>
+                      {selectedTeamDetails.team_name || "-"}
+                    </div>
+                  </div>
+                  <div />
+                </div>
+
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                  gridTemplateRows: "repeat(5, minmax(0, 1fr))",
+                  gap: teamCardGap,
+                  minHeight: 0
+                }}>
                 {teamDetailRows.map((p, idx) => (
-                  <tr key={p ? `team-detail-${p.id}` : `empty-${idx}`} style={{ height: teamDetailRowHeight, background: p ? undefined : "rgba(5,6,16,0.7)" }}>
-                    <td style={{ padding: teamDetailCellPadding, border: "1px solid rgba(225,195,120,0.25)", textAlign: "center", color: "#f1e9cc", fontWeight: "bold" }}>{idx + 1}</td>
-                    <td style={{ padding: teamDetailCellPadding, border: "1px solid rgba(225,195,120,0.25)" }}>
-                      {p && <img
-                        src={`http://localhost:5000${p.photo}`}
-                        alt={p.name}
-                        style={{ width: teamDetailImageSize, height: teamDetailImageSize, objectFit: "cover", borderRadius: 4, border: "1px solid rgba(225,195,120,0.6)" }}
-                      />}
-                    </td>
-                    <td style={{ padding: teamDetailCellPadding, border: "1px solid rgba(225,195,120,0.25)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p?.name ?? ""}</td>
-                    <td style={{ padding: teamDetailCellPadding, border: "1px solid rgba(225,195,120,0.25)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p?.role ?? ""}</td>
-                    <td style={{ padding: teamDetailCellPadding, border: "1px solid rgba(225,195,120,0.25)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p?.sold_status ?? ""}</td>
-                    <td style={{ padding: teamDetailCellPadding, border: "1px solid rgba(225,195,120,0.25)", textAlign: "right", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p != null ? (p.sold_price ?? "-") : ""}</td>
-                    <td style={{ padding: teamDetailCellPadding, border: "1px solid rgba(225,195,120,0.25)", textAlign: "right", whiteSpace: "nowrap" }}>{p != null ? (p.age ?? "-") : ""}</td>
-                    <td style={{ padding: teamDetailCellPadding, border: "1px solid rgba(225,195,120,0.25)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p?.mobile_number ?? ""}</td>
-                  </tr>
+                  <div
+                    key={p ? `team-detail-${p.id}` : `empty-${idx}`}
+                    style={{
+                      position: "relative",
+                      background: p
+                        ? "linear-gradient(180deg, rgba(22,28,70,0.98) 0%, rgba(10,12,32,0.98) 52%, rgba(7,9,24,0.98) 100%)"
+                        : "linear-gradient(180deg, rgba(10,12,26,0.85) 0%, rgba(6,8,18,0.9) 100%)",
+                      border: "1px solid rgba(225,195,120,0.65)",
+                      boxShadow: "0 10px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)",
+                      borderRadius: 10,
+                      overflow: "hidden",
+                      padding: teamCardPadding,
+                      minHeight: 0
+                    }}
+                  >
+                    <div style={{
+                      position: "absolute",
+                      left: 10,
+                      right: 10,
+                      top: 0,
+                      height: 3,
+                      background: "linear-gradient(90deg, rgba(236,213,144,0.45), rgba(255,245,205,0.72), rgba(236,213,144,0.45))"
+                    }} />
+                    <div style={{
+                      position: "absolute",
+                      left: 6,
+                      top: 6,
+                      minWidth: teamCardBadgeSize,
+                      height: teamCardBadgeSize,
+                      borderRadius: 10,
+                      border: "1px solid rgba(225,195,120,0.7)",
+                      color: "#f1e9cc",
+                      fontWeight: "bold",
+                      fontSize: teamCardBadgeFont,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "rgba(8,10,24,0.9)",
+                      zIndex: 2
+                    }}>
+                      {idx + 1}
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "stretch", gap: isProjectorLayout ? 4 : 6, height: "100%", minHeight: 0 }}>
+
+                      {p ? (
+                        <div style={{
+                          height: "100%",
+                          minHeight: 0,
+                          aspectRatio: "1 / 1",
+                          borderRadius: 5,
+                          border: "1px solid rgba(225,195,120,0.7)",
+                          overflow: "hidden",
+                          background: "#101432"
+                        }}>
+                          <img
+                            src={`http://localhost:5000${p.photo}`}
+                            alt={p.name}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                              display: "block"
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div style={{
+                          height: "100%",
+                          minHeight: 0,
+                          aspectRatio: "1 / 1",
+                          borderRadius: 5,
+                          border: "1px solid rgba(225,195,120,0.25)",
+                          background: "rgba(4,5,12,0.8)"
+                        }} />
+                      )}
+
+                      <div style={{ minWidth: 0, flex: 1, paddingTop: 2 }}>
+                        <div style={{
+                          color: "#ffffff",
+                          fontSize: teamPlayerNameFont,
+                          lineHeight: 1.12,
+                          fontWeight: "bold",
+                          whiteSpace: "normal",
+                          wordBreak: "break-word",
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis"
+                        }}>
+                          {p?.name || "Empty Slot"}
+                        </div>
+                        <div style={{
+                          color: "#d7c48a",
+                          fontSize: teamPlayerMetaFont,
+                          lineHeight: 1.12,
+                          marginTop: 1,
+                          whiteSpace: "normal",
+                          wordBreak: "break-word",
+                          overflowWrap: "anywhere",
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis"
+                        }}>
+                          {p ? `${p.role || "-"} | ${p.sold_status || "-"}` : "Unfilled"}
+                        </div>
+                        <div style={{
+                          marginTop: 1,
+                          color: "#f1e9cc",
+                          fontSize: teamPlayerMetaFont,
+                          lineHeight: 1.12,
+                          whiteSpace: "normal",
+                          wordBreak: "break-word",
+                          overflowWrap: "anywhere",
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis"
+                        }}>
+                          {p ? `Price: ${p.sold_price ?? "-"} | Age: ${p.age ?? "-"}` : "Price: - | Age: -"}
+                        </div>
+                        <div style={{
+                          marginTop: 1,
+                          color: "#aeb7d6",
+                          fontSize: teamPlayerMetaFont,
+                          lineHeight: 1.1,
+                          whiteSpace: "normal",
+                          wordBreak: "break-word",
+                          overflowWrap: "anywhere",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis"
+                        }}>
+                          {p?.mobile_number || "Mobile: -"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 ))}
-                </tbody>
-              </table>
+                </div>
+              </div>
             </div>
           </div>
         </div>
