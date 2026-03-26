@@ -7,10 +7,17 @@ db.serialize(() => {
     name TEXT,
     balance INTEGER,
     photo TEXT,
-    owner_name TEXT
+    owner_name TEXT,
+    photoowner TEXT
   )`);
 
   db.run("ALTER TABLE teams ADD COLUMN owner_name TEXT", (err) => {
+    if (err && !err.message.includes("duplicate column name")) {
+      console.error(err.message);
+    }
+  });
+
+  db.run("ALTER TABLE teams ADD COLUMN photoowner TEXT", (err) => {
     if (err && !err.message.includes("duplicate column name")) {
       console.error(err.message);
     }
@@ -22,10 +29,17 @@ db.serialize(() => {
     role TEXT,
     base_price INTEGER,
     sold_to_team INTEGER,
+    auction_category TEXT,
     photo TEXT,
     age INTEGER,
     mobile_number TEXT
   )`);
+
+  db.run("ALTER TABLE players ADD COLUMN auction_category TEXT", (err) => {
+    if (err && !err.message.includes("duplicate column name")) {
+      console.error(err.message);
+    }
+  });
 
   db.run("ALTER TABLE players ADD COLUMN age INTEGER", (err) => {
     if (err && !err.message.includes("duplicate column name")) {
@@ -35,6 +49,12 @@ db.serialize(() => {
 
   db.run("ALTER TABLE players ADD COLUMN mobile_number TEXT", (err) => {
     if (err && !err.message.includes("duplicate column name")) {
+      console.error(err.message);
+    }
+  });
+
+  db.run("UPDATE players SET auction_category = 'NEW' WHERE auction_category IS NULL", (err) => {
+    if (err) {
       console.error(err.message);
     }
   });

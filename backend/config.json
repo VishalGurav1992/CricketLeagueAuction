@@ -2,50 +2,56 @@
   "teams": [
     {
       "id": 1,
-      "name": "Team A",
-      "owner_name": "Owner A",
+      "name": "Shri Devati Devi Yoddha",
+      "owner_name": "Rajendra Rane",
       "balance": 100000,
-      "photo": "/images/teamA.png",
+      "photo": "/images/1logo Shri Devati Devi Yoddha.png",
+      "photoowner": "/images/1owner Rajendra Rane.png",
       "captain_player_id": 1
     },
     {
       "id": 2,
-      "name": "Team B",
-      "owner_name": "Owner B",
+      "name": "Ramnath 11",
+      "owner_name": "Prakash Naik",
       "balance": 100000,
-      "photo": "/images/teamB.png",
+      "photo": "/images/2logo Ramnath 11.png",
+      "photoowner": "/images/2owner Prakash Naik.png",
       "captain_player_id": 2
     },
     {
       "id": 3,
-      "name": "Team C",
-      "owner_name": "Owner C",
+      "name": "Sidda Rameshwar XI",
+      "owner_name": "Sanmay Tamse",
       "balance": 100000,
-      "photo": "/images/teamC.png",
+      "photo": "/images/3logo Sidda Rameshwar XI.png",
+      "photoowner": "/images/3owner Sanmay Tamse.png",
       "captain_player_id": 3
     },
     {
       "id": 4,
-      "name": "Team D",
-      "owner_name": "Owner D",
+      "name": "Mudga Game Changer",
+      "owner_name": "Vijay Gunagi",
       "balance": 100000,
-      "photo": "/images/teamD.png",
+      "photo": "/images/4logo Mudga Game Changer.png",
+      "photoowner": "/images/4owner Vijay Gunagi.png",
       "captain_player_id": 4
     },
     {
       "id": 5,
-      "name": "Team E",
-      "owner_name": "Owner E",
+      "name": "Ajgeri Warriors",
+      "owner_name": "Raju Rane",
       "balance": 100000,
-      "photo": "/images/teamE.png",
+      "photo": "/images/5logo Ajgeri Warriors.png",
+      "photoowner": "/images/5owner Raju Rane.png",
       "captain_player_id": 5
     },
     {
       "id": 6,
-      "name": "Team F",
-      "owner_name": "Owner F",
+      "name": "Shree Krishna XI",
+      "owner_name": "Ganapati Tamse",
       "balance": 100000,
-      "photo": "/images/teamF.png",
+      "photo": "/images/6logo Shree Krishna XI.png",
+      "photoowner": "/images/6owner Ganapati Tamse.png",
       "captain_player_id": 6
     }
   ],

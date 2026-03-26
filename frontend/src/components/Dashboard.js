@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
+import { relistPlayer } from "../api";
 
-export default function Dashboard({ teams, players, currentAuction, socket, auctionError, selectedTeamDetails, onCloseTeamDetails }) {
+export default function Dashboard({ teams, players, currentAuction, socket, auctionError, selectedTeamDetails, onCloseTeamDetails, showTeamsOverlay, onCloseTeamsOverlay, onShowTeams, onShowTeamFullscreen, requestedFullscreenTeamId, fullscreenRequestNonce }) {
   const [showCongratsPopup, setShowCongratsPopup] = useState(false);
   const [soldPlayerInfo, setSoldPlayerInfo] = useState(null);
   const [soundConfig, setSoundConfig] = useState(null);
@@ -8,6 +9,15 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
   const [displayedAuction, setDisplayedAuction] = useState(null);
   const [showAuctionCard, setShowAuctionCard] = useState(false);
   const [auctionCardAnimSeed, setAuctionCardAnimSeed] = useState(0);
+  const [revealedTeamsCount, setRevealedTeamsCount] = useState(0);
+  const [newlyRevealedIndex, setNewlyRevealedIndex] = useState(-1);
+  const [animatingCard, setAnimatingCard] = useState(null);
+  const [cardAnimComplete, setCardAnimComplete] = useState(false);
+  const [animationTrigger, setAnimationTrigger] = useState(0);
+  const [fullscreenTeam, setFullscreenTeam] = useState(null);
+  const [isFullscreenAnimating, setIsFullscreenAnimating] = useState(false);
+  const [isCollapsingFullscreen, setIsCollapsingFullscreen] = useState(false);
+  const [sellingPlayerId, setSellingPlayerId] = useState(null);
   const [titleWidth, setTitleWidth] = useState(null);
   const [viewportSize, setViewportSize] = useState({
     width: typeof window !== "undefined" ? window.innerWidth : 1280,
@@ -17,6 +27,10 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
   const hideAuctionTimerRef = useRef(null);
   const activeAuctionPlayerIdRef = useRef(null);
   const titleRef = useRef(null);
+  const previousShowTeamsOverlayRef = useRef(false);
+  const revealAnimFrameRef = useRef(null);
+  const animationTimeoutRef = useRef(null);
+  const lastHandledFullscreenNonceRef = useRef(-1);
 
   // Load sound configuration
   useEffect(() => {
@@ -97,8 +111,28 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
       if (hideAuctionTimerRef.current) {
         clearTimeout(hideAuctionTimerRef.current);
       }
+      if (revealAnimFrameRef.current) {
+        cancelAnimationFrame(revealAnimFrameRef.current);
+      }
+      if (animationTimeoutRef.current) {
+        clearTimeout(animationTimeoutRef.current);
+      }
     };
   }, []);
+
+  useEffect(() => {
+    const maxTeams = Math.min(6, teams.length);
+
+    if (!showTeamsOverlay) {
+      previousShowTeamsOverlayRef.current = false;
+      return;
+    }
+
+    previousShowTeamsOverlayRef.current = true;
+    setCardAnimComplete(true);
+    setAnimatingCard(null);
+    setRevealedTeamsCount(maxTeams);
+  }, [showTeamsOverlay, teams.length]);
 
   useEffect(() => {
     const syncTitleWidth = () => {
@@ -121,7 +155,43 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
     };
   }, []);
 
+  useEffect(() => {
+    if (fullscreenRequestNonce === lastHandledFullscreenNonceRef.current) return;
+
+    const requestedId = Number(requestedFullscreenTeamId);
+    if (!requestedId) return;
+
+    const team = teams.find((t) => Number(t.id) === requestedId);
+    if (!team) return;
+
+    lastHandledFullscreenNonceRef.current = fullscreenRequestNonce;
+
+    setAnimatingCard(null);
+    setCardAnimComplete(false);
+    setIsCollapsingFullscreen(false);
+    setFullscreenTeam(team);
+    setIsFullscreenAnimating(true);
+  }, [requestedFullscreenTeamId, fullscreenRequestNonce, teams]);
+
   const teamDetailPlayers = selectedTeamDetails?.players || [];
+  const highestAuctionedNonCaptainPlayerId = (() => {
+    const candidates = teamDetailPlayers.filter((p) => {
+      if (!p) return false;
+      if (String(p.role || "").toLowerCase() === "captain") return false;
+      const numericPrice = Number(p.sold_price);
+      return Number.isFinite(numericPrice);
+    });
+
+    if (!candidates.length) return null;
+
+    const highest = candidates.reduce((best, current) => {
+      const bestPrice = Number(best.sold_price);
+      const currentPrice = Number(current.sold_price);
+      return currentPrice > bestPrice ? current : best;
+    });
+
+    return highest?.id ?? null;
+  })();
   const TEAM_MAX_PLAYERS = 15;
   const teamDetailRows = [
     ...teamDetailPlayers,
@@ -145,6 +215,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
   const tableBodyFontSize = isProjectorLayout ? "clamp(15px, 1.3vw, 19px)" : "clamp(17px, 1.6vw, 23px)";
   const tableCellPadding = isProjectorLayout ? "5px" : "6px";
   const teamPanelPadding = isProjectorLayout ? 6 : 8;
+  const teamPanelGap = isProjectorLayout ? 8 : 12;
   const auctionCardWidth = titleWidth ? Math.round(titleWidth) : viewportSize.width - (rootPadding * 2);
   const auctionNamePanelWidth = Math.max(120, Math.floor((auctionCardWidth * 1.35) / 3.45) - 24);
   const auctionPhotoSize = isProjectorLayout
@@ -187,7 +258,29 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
   const toAbsolutePhotoUrl = (photoPath) => {
     if (!photoPath) return "";
     if (/^https?:\/\//i.test(photoPath)) return photoPath;
-    return `http://localhost:5000${photoPath}`;
+    return encodeURI(`http://localhost:5000${photoPath}`);
+  };
+
+  const handleRelistFromTeamDetails = async (playerId) => {
+    if (!playerId || !socket) return;
+    const confirmed = window.confirm("Are you sure you want to sell the player?");
+    if (!confirmed) return;
+    setSellingPlayerId(playerId);
+    try {
+      const response = await relistPlayer(playerId);
+      if (response?.error) {
+        window.alert(response.error);
+        return;
+      }
+      const teamId = Number(selectedTeamDetails?.team_id);
+      if (teamId) {
+        socket.emit("selectTeamForDashboard", { teamId });
+      }
+    } catch (err) {
+      window.alert("Failed to move player to unsold pool");
+    } finally {
+      setSellingPlayerId(null);
+    }
   };
 
   const fetchImageAsDataUrl = async (url) => {
@@ -328,25 +421,24 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
         }}>
           Siddar Premier League Auction 2026
         </h1>
-        <button
-          onClick={() => setIsBackgroundEnabled(prev => !prev)}
-          style={{
-            position: "absolute",
-            right: 0,
-            top: 0,
-            border: "none",
-            borderRadius: "999px",
-            padding: togglePadding,
-            fontSize: toggleFontSize,
-            fontWeight: "bold",
-            cursor: "pointer",
-            background: isBackgroundEnabled ? "#198754" : "#6c757d",
-            color: "white",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
-          }}
-        >
-          {isBackgroundEnabled ? "Background: ON" : "Background: OFF"}
-        </button>
+        <div style={{ position: "absolute", right: 0, top: 0, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "80%", alignItems: "center" }}>
+          <button
+            onClick={() => setIsBackgroundEnabled(prev => !prev)}
+            style={{
+              border: "none",
+              borderRadius: "999px",
+              padding: togglePadding,
+              fontSize: toggleFontSize,
+              fontWeight: "bold",
+              cursor: "pointer",
+              background: isBackgroundEnabled ? "#198754" : "#6c757d",
+              color: "white",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
+            }}
+          >
+            {isBackgroundEnabled ? "Background: ON" : "Background: OFF"}
+          </button>
+        </div>
       </div>
 
       {auctionError && (
@@ -367,10 +459,10 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
 
       <div className="dashboard-content" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         {/* Teams Cards - 3 columns x 2 rows */}
-        <div style={{ flex: "0 0 60%", minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: teamPanelGap, paddingBottom: teamPanelGap + auctionPhotoSize }}>
           <div style={{
-            flex: "0 1 auto",
-            maxHeight: "100%",
+            flex: 1,
+            minHeight: 0,
             overflow: "hidden",
             width: teamTableWidth,
             minWidth: teamTableWidth,
@@ -384,6 +476,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
           }}>
             <div style={{
               display: "grid",
+              height: "100%",
               gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
               gridTemplateRows: "repeat(2, minmax(0, 1fr))",
               gap: teamCardGap,
@@ -412,21 +505,22 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                     background: "linear-gradient(90deg, rgba(236,213,144,0.45), rgba(255,245,205,0.72), rgba(236,213,144,0.45))"
                   }} />
 
-                  <div style={{ display: "flex", alignItems: "center", gap: isProjectorLayout ? 6 : 8, minWidth: 0 }}>
-                    <img
-                      src={`http://localhost:5000${team.photo}`}
-                      alt={team.name}
-                      style={{
-                        width: isProjectorLayout ? "clamp(34px, 2.8vw, 44px)" : "clamp(40px, 3.4vw, 56px)",
-                        height: isProjectorLayout ? "clamp(34px, 2.8vw, 44px)" : "clamp(40px, 3.4vw, 56px)",
-                        borderRadius: "50%",
-                        objectFit: "cover",
-                        border: "2px solid rgba(225,195,120,0.9)",
-                        background: "#101432",
-                        flex: "0 0 auto"
-                      }}
-                    />
-                    <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: "flex", height: "100%", gap: isProjectorLayout ? 6 : 8, minHeight: 0 }}>
+                    {/* Left half — logo */}
+                    <div style={{ flex: "0 0 50%", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0 }}>
+                      <img
+                        src={toAbsolutePhotoUrl(team.photo)}
+                        alt={team.name}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "contain",
+                          background: "transparent"
+                        }}
+                      />
+                    </div>
+                    {/* Right half — name + stats */}
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: isProjectorLayout ? 4 : 6, minWidth: 0 }}>
                       <div style={{
                         color: "#ffffff",
                         fontSize: tableBodyFontSize,
@@ -439,44 +533,66 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                         {team.name}
                       </div>
                       <div style={{
-                        color: "#d7c48a",
-                        fontSize: teamCardMetaFont,
-                        marginTop: 1,
-                        whiteSpace: "nowrap",
+                        border: "1px solid rgba(225,195,120,0.45)",
+                        borderRadius: 6,
                         overflow: "hidden",
-                        textOverflow: "ellipsis"
+                        background: "rgba(8,10,24,0.62)"
                       }}>
-                        Owner: {team.owner_name || "-"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{
-                    marginTop: isProjectorLayout ? 4 : 6,
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: isProjectorLayout ? 4 : 6
-                  }}>
-                    <div style={{
-                      border: "1px solid rgba(225,195,120,0.45)",
-                      borderRadius: 6,
-                      padding: isProjectorLayout ? "4px 6px" : "5px 7px",
-                      background: "rgba(8,10,24,0.6)"
-                    }}>
-                      <div style={{ color: "#d7c48a", fontSize: tableHeaderFontSize, lineHeight: 1, fontWeight: "bold" }}>BALANCE</div>
-                      <div style={{ color: "#f1e9cc", marginTop: 2, fontSize: tableBodyFontSize, lineHeight: 1.05, fontWeight: "bold" }}>
-                        {Number(team.balance || 0).toLocaleString()}
-                      </div>
-                    </div>
-                    <div style={{
-                      border: "1px solid rgba(225,195,120,0.45)",
-                      borderRadius: 6,
-                      padding: isProjectorLayout ? "4px 6px" : "5px 7px",
-                      background: "rgba(8,10,24,0.6)"
-                    }}>
-                      <div style={{ color: "#d7c48a", fontSize: tableHeaderFontSize, lineHeight: 1, fontWeight: "bold" }}>PLAYERS</div>
-                      <div style={{ color: "#f1e9cc", marginTop: 2, fontSize: tableBodyFontSize, lineHeight: 1.05, fontWeight: "bold" }}>
-                        {getTeamPlayerCount(team.id)}
+                        <div style={{
+                          display: "grid",
+                          gridTemplateColumns: "1fr auto",
+                          alignItems: "center",
+                          minHeight: isProjectorLayout ? 24 : 28,
+                          borderBottom: "1px solid rgba(225,195,120,0.35)"
+                        }}>
+                          <div style={{
+                            color: "#d7c48a",
+                            fontSize: teamCardMetaFont,
+                            fontWeight: "bold",
+                            letterSpacing: "0.5px",
+                            padding: isProjectorLayout ? "4px 6px" : "5px 7px",
+                            background: "rgba(225,195,120,0.08)"
+                          }}>
+                            BALANCE
+                          </div>
+                          <div style={{
+                            color: "#f1e9cc",
+                            fontSize: tableBodyFontSize,
+                            fontWeight: "bold",
+                            lineHeight: 1.05,
+                            padding: isProjectorLayout ? "4px 6px" : "5px 7px",
+                            textAlign: "right"
+                          }}>
+                            {Number(team.balance || 0).toLocaleString("en-IN")}
+                          </div>
+                        </div>
+                        <div style={{
+                          display: "grid",
+                          gridTemplateColumns: "1fr auto",
+                          alignItems: "center",
+                          minHeight: isProjectorLayout ? 24 : 28
+                        }}>
+                          <div style={{
+                            color: "#d7c48a",
+                            fontSize: teamCardMetaFont,
+                            fontWeight: "bold",
+                            letterSpacing: "0.5px",
+                            padding: isProjectorLayout ? "4px 6px" : "5px 7px",
+                            background: "rgba(225,195,120,0.08)"
+                          }}>
+                            PLAYERS
+                          </div>
+                          <div style={{
+                            color: "#f1e9cc",
+                            fontSize: tableBodyFontSize,
+                            fontWeight: "bold",
+                            lineHeight: 1.05,
+                            padding: isProjectorLayout ? "4px 6px" : "5px 7px",
+                            textAlign: "right"
+                          }}>
+                            {getTeamPlayerCount(team.id)}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -507,7 +623,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                 }}
               >
                 <img
-                  src={`http://localhost:5000${displayedAuction.player.photo}`}
+                  src={toAbsolutePhotoUrl(displayedAuction.player.photo)}
                   alt={displayedAuction.player.name}
                   style={{
                     position: "absolute",
@@ -583,6 +699,297 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
           )}
         </div>
       </div>
+
+      {showTeamsOverlay && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.82)",
+          zIndex: 880,
+          display: "flex",
+          alignItems: "stretch",
+          justifyContent: "stretch"
+        }}>
+          <div style={{
+            position: "absolute",
+            inset: 0,
+            padding: isProjectorLayout ? "12px" : "18px",
+            boxSizing: "border-box",
+            background: "linear-gradient(180deg, rgba(22,28,70,0.97) 0%, rgba(8,10,24,0.97) 100%)",
+            display: "flex",
+            flexDirection: "column",
+            gap: isProjectorLayout ? 10 : 14
+          }}>
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", position: "relative", minHeight: isProjectorLayout ? "28px" : "36px" }}>
+              <div style={{ color: "#f1e9cc", fontWeight: "bold", fontSize: isProjectorLayout ? "28px" : "36px", letterSpacing: 0.8, textAlign: "center" }}>
+                Siddar Premier League 2026
+              </div>
+              <button
+                onClick={() => {
+                  setCardAnimComplete(false);
+                  setAnimatingCard(null);
+                  setAnimationTrigger(0);
+                  previousShowTeamsOverlayRef.current = false;
+                  onCloseTeamsOverlay && onCloseTeamsOverlay();
+                  if (socket) socket.emit("hideTeamsOverlay");
+                }}
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  border: "none",
+                  borderRadius: 6,
+                  padding: isProjectorLayout ? "6px 10px" : "8px 12px",
+                  background: "#8b1e1e",
+                  color: "white",
+                  fontWeight: "bold",
+                  cursor: "pointer"
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            <div style={{
+              flex: 1,
+              minHeight: 0,
+              overflowX: "hidden",
+              overflowY: "hidden",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxSizing: "border-box",
+              padding: isProjectorLayout ? "46px 0" : "76px 0"
+            }}>
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: isProjectorLayout ? 8 : 12,
+                width: "100%",
+                maxWidth: "100%",
+                height: "100%"
+              }}>
+                {teams.slice(0, Math.min(6, revealedTeamsCount)).map((team, index) => (
+                  <div
+                    key={`teams-overlay-${team.id}`}
+                    style={{
+                      background: "linear-gradient(180deg, rgba(22,28,70,0.98) 0%, rgba(10,12,32,0.98) 52%, rgba(7,9,24,0.98) 100%)",
+                      border: "1px solid rgba(225,195,120,0.65)",
+                      boxShadow: "0 10px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)",
+                      borderRadius: 10,
+                      overflow: "hidden",
+                      display: "grid",
+                      gridTemplateRows: "40% 60%",
+                      height: "100%"
+                    }}
+                  >
+                    <div style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "center",
+                      padding: isProjectorLayout ? 8 : 10,
+                      minHeight: 0,
+                      background: "rgba(8,10,24,0.45)",
+                      overflow: "hidden"
+                    }}>
+                      <img
+                        src={toAbsolutePhotoUrl(team.photo)}
+                        alt={team.name}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "contain",
+                          display: "block"
+                        }}
+                      />
+                    </div>
+
+                    <div style={{
+                      position: "relative",
+                      overflow: "hidden",
+                      minHeight: 0,
+                      background: "#070a1d",
+                      display: "grid",
+                      gridTemplateRows: "1fr auto",
+                      height: "100%"
+                    }}>
+                      <div style={{ position: "relative", minHeight: 0, overflow: "hidden", width: "100%", height: "100%" }}>
+                        <img
+                          src={toAbsolutePhotoUrl(team.photoowner || team.photo)}
+                          alt={team.owner_name || team.name}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "contain",
+                            objectPosition: "center bottom",
+                            display: "block"
+                          }}
+                        />
+                      </div>
+                      <div style={{
+                        background: "rgba(8,10,24,0.92)",
+                        color: "#f1e9cc",
+                        fontWeight: "bold",
+                        fontSize: isProjectorLayout ? "16px" : "21px",
+                        lineHeight: 1.1,
+                        textAlign: "center",
+                        padding: isProjectorLayout ? "4px 6px" : "6px 8px",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis"
+                      }}>
+                        {team.owner_name || "-"}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {fullscreenTeam && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.95)",
+          zIndex: 950,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          animation: "fadeIn 300ms ease-out"
+        }}>
+          <div
+            style={{
+              width: "95vw",
+              height: "95vh",
+              background: "linear-gradient(180deg, rgba(22,28,70,0.98) 0%, rgba(10,12,32,0.98) 52%, rgba(7,9,24,0.98) 100%)",
+              border: "2px solid rgba(225,195,120,0.65)",
+              borderRadius: 15,
+              overflow: "hidden",
+              display: "grid",
+              gridTemplateRows: "40% 60%",
+              gap: 10,
+              padding: 20,
+              boxSizing: "border-box",
+              animation: isFullscreenAnimating
+                ? "expandTeamCard 800ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards"
+                : "none"
+            }}
+            onAnimationEnd={() => {
+              setIsFullscreenAnimating(false);
+            }}
+          >
+            <style>{`
+              @keyframes expandTeamCard {
+                from {
+                  width: 100px;
+                  height: 100px;
+                  opacity: 0;
+                }
+                to {
+                  width: 95vw;
+                  height: 95vh;
+                  opacity: 1;
+                }
+              }
+              @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+              }
+            `}</style>
+
+            <div style={{ position: "absolute", right: 20, top: 20, display: "flex", gap: 8, zIndex: 10 }}>
+              <button
+                onClick={() => {
+                  setIsFullscreenAnimating(false);
+                  setIsCollapsingFullscreen(false);
+                  setFullscreenTeam(null);
+                }}
+                style={{
+                  border: "none",
+                  borderRadius: 6,
+                  padding: "8px 16px",
+                  background: "#6c757d",
+                  color: "white",
+                  fontWeight: "bold",
+                  fontSize: "16px",
+                  cursor: "pointer",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.3)"
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "hidden",
+              borderRadius: 10,
+              background: "rgba(8,10,24,0.6)"
+            }}>
+              <img
+                src={toAbsolutePhotoUrl(fullscreenTeam.photo)}
+                alt={fullscreenTeam.name}
+                style={{
+                  width: "auto",
+                  height: "100%",
+                  maxWidth: "100%",
+                  objectFit: "contain",
+                  display: "block"
+                }}
+              />
+            </div>
+
+            <div style={{
+              background: "linear-gradient(135deg, rgba(22,28,70,0.98) 0%, rgba(10,12,32,0.98) 100%)",
+              border: "1px solid rgba(225,195,120,0.65)",
+              borderRadius: 10,
+              padding: 18,
+              boxSizing: "border-box",
+              display: "grid",
+              gridTemplateRows: "1fr auto",
+              gap: 10,
+              overflow: "hidden"
+            }}>
+              <div style={{
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "flex-end",
+                justifyContent: "center"
+              }}>
+                <img
+                  src={toAbsolutePhotoUrl(fullscreenTeam.photoowner || fullscreenTeam.photo)}
+                  alt={fullscreenTeam.owner_name || fullscreenTeam.name}
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: "100%",
+                    objectFit: "contain",
+                    display: "block"
+                  }}
+                />
+              </div>
+              <div style={{
+                background: "rgba(8,10,24,0.92)",
+                color: "#f1e9cc",
+                fontWeight: "bold",
+                fontSize: "clamp(22px, 3vw, 36px)",
+                lineHeight: 1.1,
+                textAlign: "center",
+                padding: "10px 14px",
+                borderRadius: 8,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis"
+              }}>
+                {fullscreenTeam.owner_name || "-"}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {selectedTeamDetails && (
         <div style={{
@@ -681,7 +1088,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                           overflow: "hidden"
                         }}>
                           <img
-                            src={`http://localhost:5000${selectedTeamLogo}`}
+                            src={toAbsolutePhotoUrl(selectedTeamLogo)}
                             alt={selectedTeamDetails.team_name || "Team"}
                             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                           />
@@ -779,7 +1186,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                           background: "#101432"
                         }}>
                           <img
-                            src={`http://localhost:5000${p.photo}`}
+                            src={toAbsolutePhotoUrl(p.photo)}
                             alt={p.name}
                             style={{
                               width: "100%",
@@ -861,6 +1268,25 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                         }}>
                           {p?.mobile_number || "Mobile: -"}
                         </div>
+                        {p && Number(p.id) === Number(highestAuctionedNonCaptainPlayerId) && (
+                          <button
+                            onClick={() => handleRelistFromTeamDetails(p.id)}
+                            disabled={sellingPlayerId === p.id}
+                            style={{
+                              marginTop: 4,
+                              border: "none",
+                              borderRadius: 6,
+                              padding: isProjectorLayout ? "3px 6px" : "5px 8px",
+                              background: sellingPlayerId === p.id ? "#6c757d" : "#c63d2b",
+                              color: "#fff",
+                              fontWeight: "bold",
+                              fontSize: teamPlayerMetaFont,
+                              cursor: sellingPlayerId === p.id ? "not-allowed" : "pointer"
+                            }}
+                          >
+                            {sellingPlayerId === p.id ? "Selling..." : "Sell"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -985,7 +1411,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
 
             <div style={{ margin: "30px 0" }}>
               <img
-                src={`http://localhost:5000${soldPlayerInfo.player.photo}`}
+                src={toAbsolutePhotoUrl(soldPlayerInfo.player.photo)}
                 alt={soldPlayerInfo.player.name}
                 style={{
                   width: "120px",
