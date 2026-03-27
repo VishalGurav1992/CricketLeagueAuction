@@ -121,12 +121,17 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
   }, []);
 
   useEffect(() => {
-    const maxTeams = Math.min(6, teams.length);
+    const maxTeams = teams.length;
 
     if (!showTeamsOverlay) {
       previousShowTeamsOverlayRef.current = false;
       return;
     }
+
+    // Opening all-teams overlay should always dismiss any individual fullscreen team card.
+    setFullscreenTeam(null);
+    setIsFullscreenAnimating(false);
+    setIsCollapsingFullscreen(false);
 
     previousShowTeamsOverlayRef.current = true;
     setCardAnimComplete(true);
@@ -174,6 +179,12 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
   }, [requestedFullscreenTeamId, fullscreenRequestNonce, teams]);
 
   const teamDetailPlayers = selectedTeamDetails?.players || [];
+  const displayedAuctionPlayer = displayedAuction?.player
+    ? {
+        ...displayedAuction.player,
+        ...(players.find((p) => Number(p.id) === Number(displayedAuction.player.id)) || {})
+      }
+    : null;
   const highestAuctionedNonCaptainPlayerId = (() => {
     const candidates = teamDetailPlayers.filter((p) => {
       if (!p) return false;
@@ -226,6 +237,8 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
   const auctionNameFont = isProjectorLayout ? "clamp(24px, 2.9vw, 40px)" : "clamp(28px, 3.5vw, 50px)";
   const auctionMetricFont = isProjectorLayout ? "clamp(19px, 2.4vw, 32px)" : "clamp(22px, 3vw, 40px)";
   const auctionBidFont = isProjectorLayout ? "clamp(22px, 2.8vw, 36px)" : "clamp(24px, 3.4vw, 42px)";
+  const auctionDetailLabelFont = isProjectorLayout ? "11px" : "13px";
+  const auctionDetailValueFont = isProjectorLayout ? "clamp(12px, 1.25vw, 16px)" : "clamp(14px, 1.45vw, 19px)";
   const teamPopupPadding = isProjectorLayout ? 6 : 10;
   const teamPopupGap = isProjectorLayout ? 4 : 6;
   const teamPopupButtonPadding = isProjectorLayout ? "5px 8px" : "6px 10px";
@@ -242,6 +255,9 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
   const teamCardBadgeFont = isProjectorLayout ? "11px" : "clamp(11px, 0.9vw, 14px)";
   const teamCardImageSize = isProjectorLayout ? 20 : teamDetailImageSize + 6;
   const teamTableWidth = `${Math.round(Math.min(viewportSize.width * 0.98, viewportSize.width))}px`;
+  const overlayTeamCount = Math.max(1, Math.min(revealedTeamsCount, teams.length));
+  const overlayColumns = Math.max(1, Math.ceil(Math.sqrt(overlayTeamCount)));
+  const overlayRows = Math.max(1, Math.ceil(overlayTeamCount / overlayColumns));
   const selectedTeamLogo = teams.find(
     (t) => String(t.name || "").toLowerCase() === String(selectedTeamDetails?.team_name || "").toLowerCase()
   )?.photo;
@@ -603,11 +619,11 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
         </div>
         {/* Auction Zone - 40% height */}
         <div style={{ flex: "0 0 40%", minHeight: 0, position: "relative" }}>
-          {displayedAuction?.player && (
+          {displayedAuctionPlayer && (
             <>
               {/* Auction Card */}
               <div
-                key={`${displayedAuction.player.id}-${auctionCardAnimSeed}`}
+                key={`${displayedAuctionPlayer.id}-${auctionCardAnimSeed}`}
                 style={{
                   position: "absolute",
                   left: "50%",
@@ -623,8 +639,8 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                 }}
               >
                 <img
-                  src={toAbsolutePhotoUrl(displayedAuction.player.photo)}
-                  alt={displayedAuction.player.name}
+                  src={toAbsolutePhotoUrl(displayedAuctionPlayer.photo)}
+                  alt={displayedAuctionPlayer.name}
                   style={{
                     position: "absolute",
                     left: "50%",
@@ -642,30 +658,40 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                 />
                 {/* Dark background content — clipped to trapezoid */}
                 <div style={{
-                  clipPath: "polygon(0% 0%, 100% 0%, 92% 100%, 8% 100%)",
                   background: "linear-gradient(180deg, rgba(22,28,70,0.98) 0%, rgba(10,12,32,0.98) 52%, rgba(7,9,24,0.98) 100%)",
                   padding: "0 10px 10px",
-                  position: "relative"
+                  position: "relative",
+                  border: "1.5px solid rgba(225,195,120,0.85)",
+                  borderRadius: 12
                 }}>
                   <div style={{
                     position: "absolute", left: 10, right: 10, top: 0, height: 5,
                     background: "linear-gradient(90deg, rgba(236,213,144,0.55), rgba(255,245,205,0.78), rgba(236,213,144,0.55))"
                   }} />
-                  <div style={{ display: "grid", gridTemplateColumns: "1.05fr 1.35fr 1.05fr", gap: 8, alignItems: "stretch" }}>
-                    <div style={{ background: "linear-gradient(180deg, rgba(26,30,66,0.95), rgba(12,14,36,0.95))", border: "1px solid rgba(214,186,116,0.65)", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
-                      <div style={{ fontSize: 11, letterSpacing: 0.8, fontWeight: "bold", color: "#d7c48a" }}>ROLE</div>
-                      <div style={{ marginTop: 6, fontSize: auctionRoleFont, color: "#f1e9cc", lineHeight: 1, fontWeight: "bold", textAlign: "center" }}>
-                        {displayedAuction.player.role}
-                      </div>
-                      <div style={{ marginTop: 10, fontSize: 11, letterSpacing: 0.8, fontWeight: "bold", color: "#d7c48a" }}>AGE</div>
-                      <div style={{ marginTop: 4, fontSize: auctionMetricFont, color: "#f1e9cc", lineHeight: 1, fontWeight: "bold" }}>
-                        {displayedAuction.player.age ?? "-"}
-                      </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, alignItems: "stretch" }}>
+                    <div style={{ background: "linear-gradient(180deg, rgba(26,30,66,0.95), rgba(12,14,36,0.95))", border: "1px solid rgba(214,186,116,0.65)", borderRadius: 10, padding: "10px 12px", display: "grid", gridTemplateColumns: "auto 1fr", alignContent: "center", alignItems: "center", rowGap: isProjectorLayout ? 5 : 6, columnGap: 8 }}>
+                      {[
+                        ["ROLE", displayedAuctionPlayer.role],
+                        ["AGE", displayedAuctionPlayer.age ?? "-"],
+                        ["VILLAGE", displayedAuctionPlayer.village || "-"],
+                        ["BATTING", displayedAuctionPlayer.batting_style || "-"],
+                        ["BOWLING", displayedAuctionPlayer.bowling_style || "-"],
+                        ["JERSEY NO", displayedAuctionPlayer.jersey_no || "-"]
+                      ].map(([label, value]) => (
+                        <React.Fragment key={label}>
+                          <div style={{ fontSize: auctionDetailLabelFont, letterSpacing: 0.8, fontWeight: "bold", color: "#d7c48a", lineHeight: 1, whiteSpace: "nowrap", display: "flex", alignItems: "center", minHeight: isProjectorLayout ? 14 : 16 }}>
+                            {label}
+                          </div>
+                          <div style={{ fontSize: auctionDetailValueFont, color: "#f1e9cc", lineHeight: 1, fontWeight: label === "ROLE" ? "bold" : 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", minHeight: isProjectorLayout ? 14 : 16 }} title={String(value)}>
+                            {value}
+                          </div>
+                        </React.Fragment>
+                      ))}
                     </div>
                     <div style={{ background: "linear-gradient(180deg, rgba(29,35,82,0.96), rgba(14,17,46,0.96))", border: "1px solid rgba(230,200,126,0.72)", borderRadius: 10, padding: "10px 12px", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0 }}>
                       <div style={{ minWidth: 0, flex: 1, textAlign: "center" }}>
                         <div style={{ color: "#ffffff", fontSize: auctionNameFont, lineHeight: 1.05, fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {displayedAuction.player.name}
+                          {displayedAuctionPlayer.name}
                         </div>
                       </div>
                     </div>
@@ -680,20 +706,6 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                     </div>
                   </div>
                 </div>
-                {/* SVG border overlay — sits on top, not clipped, follows trapezoid exactly */}
-                <svg
-                  style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", overflow: "visible", pointerEvents: "none" }}
-                  viewBox="0 0 100 100"
-                  preserveAspectRatio="none"
-                >
-                  <polygon
-                    points="0,0 100,0 92,100 8,100"
-                    fill="none"
-                    stroke="rgba(225,195,120,0.85)"
-                    strokeWidth="1.5"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                </svg>
               </div>
             </>
           )}
@@ -752,23 +764,23 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
             <div style={{
               flex: 1,
               minHeight: 0,
-              overflowX: "hidden",
-              overflowY: "hidden",
+              overflow: "hidden",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               boxSizing: "border-box",
-              padding: isProjectorLayout ? "46px 0" : "76px 0"
+              padding: isProjectorLayout ? "12px 0" : "18px 0"
             }}>
               <div style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gridTemplateColumns: `repeat(${overlayColumns}, minmax(0, 1fr))`,
+                gridTemplateRows: `repeat(${overlayRows}, minmax(0, 1fr))`,
                 gap: isProjectorLayout ? 8 : 12,
                 width: "100%",
-                maxWidth: "100%",
-                height: "100%"
+                height: "100%",
+                minHeight: 0
               }}>
-                {teams.slice(0, Math.min(6, revealedTeamsCount)).map((team, index) => (
+                {teams.slice(0, revealedTeamsCount).map((team, index) => (
                   <div
                     key={`teams-overlay-${team.id}`}
                     style={{

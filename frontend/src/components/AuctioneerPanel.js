@@ -16,6 +16,7 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
   const audioCtxRef = useRef(null);
   const heartbeatAudioRef = useRef(null);
   const leagueAudioRef = useRef(null);
+  const soldAudioRef = useRef(null);
 
   const getAvailablePlayers = () => {
     return players
@@ -101,6 +102,9 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
 
   const handleSell = async () => {
     if (!selectedPlayer || !selectedTeam || bid <= 0) return;
+    const confirmed = window.confirm("Are you sure you want to sell this player?");
+    if (!confirmed) return;
+    playSoldSound();
     stopHeartbeat();
     heartbeatEnabledRef.current = false;
     setHeartbeatEnabled(false);
@@ -140,6 +144,8 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
 
   const handleUnsold = async () => {
     if (!selectedPlayer) return;
+    const confirmed = window.confirm("Are you sure you want to mark this player as unsold?");
+    if (!confirmed) return;
     stopHeartbeat();
     heartbeatEnabledRef.current = false;
     setHeartbeatEnabled(false);
@@ -205,6 +211,15 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
       leagueAudioRef.current.pause();
       leagueAudioRef.current.currentTime = 0;
     }
+  };
+
+  const playSoldSound = () => {
+    if (!soldAudioRef.current) {
+      soldAudioRef.current = new Audio('/sounds/sold_sound.mp3');
+      soldAudioRef.current.volume = 1;
+    }
+    soldAudioRef.current.currentTime = 0;
+    soldAudioRef.current.play().catch(() => {});
   };
 
   const toggleLeagueAudio = () => {
@@ -296,6 +311,10 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
     return () => {
       stopHeartbeat();
       stopLeagueAudio();
+      if (soldAudioRef.current) {
+        soldAudioRef.current.pause();
+        soldAudioRef.current.currentTime = 0;
+      }
     };
   }, []);
 
@@ -572,6 +591,28 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
             </button>
           ))}
         </div>
+        <button
+          onClick={() => {
+            if (socket) {
+              socket.emit("showTeamsOverlay");
+            } else {
+              onShowTeams && onShowTeams();
+            }
+          }}
+          style={{
+            width: "100%",
+            marginTop: 10,
+            padding: "10px",
+            background: "#198754",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            fontWeight: "bold",
+            cursor: "pointer"
+          }}
+        >
+          SHOW ALL TEAMS
+        </button>
       </div>
 
       <div style={{ margin: "16px 0" }}>

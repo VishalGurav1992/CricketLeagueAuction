@@ -29,6 +29,32 @@ const getConfigTeamMap = () => {
   return new Map((config.teams || []).map((t) => [Number(t.id), t]));
 };
 
+const getConfigPlayerMap = () => {
+  const config = loadConfig();
+  return new Map((config.players || []).map((p) => [Number(p.id), p]));
+};
+
+const hydratePlayerFromConfig = (playerRow) => {
+  if (!playerRow) return playerRow;
+  const cfgPlayer = getConfigPlayerMap().get(Number(playerRow.id));
+  if (!cfgPlayer) return playerRow;
+
+  return {
+    ...playerRow,
+    name: cfgPlayer.name || playerRow.name,
+    role: cfgPlayer.role || playerRow.role,
+    age: cfgPlayer.age ?? playerRow.age,
+    mobile_number: cfgPlayer.mobile_number || playerRow.mobile_number,
+    photo: cfgPlayer.photo || playerRow.photo,
+    village: cfgPlayer.village ?? null,
+    batting_style: cfgPlayer.batting_style ?? null,
+    bowling_style: cfgPlayer.bowling_style ?? null,
+    jersey_name: cfgPlayer.jersey_name ?? null,
+    jersey_no: cfgPlayer.jersey_no ?? null,
+    contact_no: cfgPlayer.contact_no ?? cfgPlayer.mobile_number ?? null
+  };
+};
+
 const getCaptainAssignments = (config) => {
   const assignments = new Map();
   config.teams.forEach((team) => {
@@ -172,7 +198,7 @@ app.get('/teams', (req, res) => {
 app.get('/players', (req, res) => {
   db.all("SELECT * FROM players", [], (err, rows) => {
     if (err) return res.status(500).json(err);
-    res.json(rows);
+    res.json(rows.map(hydratePlayerFromConfig));
   });
 });
 
@@ -183,7 +209,7 @@ app.get('/auction/current', (req, res) => {
   
   db.get("SELECT * FROM players WHERE id = ?", [currentAuctionPlayer], (err, player) => {
     if (err) return res.status(500).json(err);
-    res.json({ player, currentBid });
+    res.json({ player: hydratePlayerFromConfig(player), currentBid });
   });
 });
 
@@ -194,11 +220,12 @@ app.post('/auction/select-player', (req, res) => {
   db.get("SELECT * FROM players WHERE id = ?", [playerId], (err, player) => {
     if (err) return res.status(500).json(err);
     currentBid = player.base_price;
+    const hydratedPlayer = hydratePlayerFromConfig(player);
     
     // Broadcast player selection to all connected clients
-    io.emit('playerSelected', { player, currentBid });
+    io.emit('playerSelected', { player: hydratedPlayer, currentBid });
     
-    res.json({ message: "Player selected for auction", player, currentBid });
+    res.json({ message: "Player selected for auction", player: hydratedPlayer, currentBid });
   });
 });
 
