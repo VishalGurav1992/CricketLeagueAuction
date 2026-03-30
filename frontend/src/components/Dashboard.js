@@ -228,11 +228,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
   const teamPanelPadding = isProjectorLayout ? 6 : 8;
   const teamPanelGap = isProjectorLayout ? 8 : 12;
   const auctionCardWidth = titleWidth ? Math.round(titleWidth) : viewportSize.width - (rootPadding * 2);
-  const auctionNamePanelWidth = Math.max(120, Math.floor((auctionCardWidth * 1.35) / 3.45) - 24);
-  const auctionPhotoSize = isProjectorLayout
-    ? Math.min(auctionNamePanelWidth, 160)
-    : Math.min(auctionNamePanelWidth, 230);
-  const auctionPhotoBottom = `calc(8px + ${auctionPhotoSize}px + 10px)`;
+  const auctionCardHeight = "100%";
   const auctionRoleFont = isProjectorLayout ? "clamp(17px, 2.2vw, 28px)" : "clamp(20px, 2.8vw, 34px)";
   const auctionNameFont = isProjectorLayout ? "clamp(24px, 2.9vw, 40px)" : "clamp(28px, 3.5vw, 50px)";
   const auctionMetricFont = isProjectorLayout ? "clamp(19px, 2.4vw, 32px)" : "clamp(22px, 3vw, 40px)";
@@ -276,6 +272,16 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
     if (/^https?:\/\//i.test(photoPath)) return photoPath;
     return encodeURI(`http://localhost:5000${photoPath}`);
   };
+
+  const formatCricketStyle = (value, roleWord) => {
+    const text = String(value || "").trim();
+    if (!text) return "-";
+    const escapedRoleWord = roleWord.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return text.replace(new RegExp(`\\s*${escapedRoleWord}\\b`, "i"), "").trim() || "-";
+  };
+
+  const formatBattingStyle = (value) => formatCricketStyle(value, "batsman");
+  const formatBowlingStyle = (value) => formatCricketStyle(value, "bowler");
 
   const handleRelistFromTeamDetails = async (playerId) => {
     if (!playerId || !socket) return;
@@ -335,12 +341,15 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
 
     autoTable(doc, {
       startY: 68,
-      head: [["#", "Photo", "Name", "Role", "Sold Status", "Sold Price", "Age", "Mobile Number"]],
+      head: [["#", "Photo", "Name", "Jersey No", "Role", "Batting Style", "Bowling Style", "Sold Status", "Sold Price", "Age", "Mobile Number"]],
       body: teamDetailRows.map((p, idx) => [
         String(idx + 1),
         "",
         p ? (p.name || "-") : "",
+        p ? (p.jersey_no ?? "-") : "",
         p ? (p.role || "-") : "",
+        p ? formatBattingStyle(p.batting_style) : "",
+        p ? formatBowlingStyle(p.bowling_style) : "",
         p ? (p.sold_status || "-") : "",
         p ? (p.sold_price ?? "-") : "",
         p ? (p.age ?? "-") : "",
@@ -348,7 +357,10 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
       ]),
       columnStyles: {
         0: { cellWidth: 22 },
-        1: { cellWidth: 46 }
+        1: { cellWidth: 46 },
+        3: { cellWidth: 44 },
+        5: { cellWidth: 82 },
+        6: { cellWidth: 82 }
       },
       didParseCell: (data) => {
         if (data.section === 'body' && data.row.index >= teamDetailPlayers.length && data.column.index > 0) {
@@ -475,7 +487,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
 
       <div className="dashboard-content" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         {/* Teams Cards - 3 columns x 2 rows */}
-        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: teamPanelGap, paddingBottom: teamPanelGap + auctionPhotoSize }}>
+        <div style={{ flex: "0 0 40%", minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: teamPanelGap, paddingBottom: teamPanelGap }}>
           <div style={{
             flex: 1,
             minHeight: 0,
@@ -617,17 +629,17 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
             </div>
           </div>
         </div>
-        {/* Auction Zone - 40% height */}
-        <div style={{ flex: "0 0 40%", minHeight: 0, position: "relative" }}>
+        {/* Auction Zone - full lower panel */}
+        <div style={{ flex: "0 0 60%", minHeight: 0, position: "relative" }}>
           {displayedAuctionPlayer && (
             <>
-              {/* Auction Card */}
               <div
                 key={`${displayedAuctionPlayer.id}-${auctionCardAnimSeed}`}
                 style={{
                   position: "absolute",
                   left: "50%",
-                  bottom: "8px",
+                  top: 0,
+                  bottom: 0,
                   width: titleWidth ? `${Math.round(titleWidth)}px` : "100%",
                   transform: showAuctionCard ? "translateX(-50%) translateY(0) scale(1)" : "translateX(-50%) translateY(28px) scale(0.98)",
                   opacity: showAuctionCard ? 1 : 0,
@@ -635,73 +647,121 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                   animation: showAuctionCard ? "auctionCardIn 420ms cubic-bezier(0.16, 1, 0.3, 1)" : "none",
                   zIndex: 20,
                   pointerEvents: "none",
-                  boxShadow: "0 18px 48px rgba(0,0,0,0.52)"
+                  boxShadow: "0 18px 48px rgba(0,0,0,0.52)",
+                  height: auctionCardHeight
                 }}
               >
-                <img
-                  src={toAbsolutePhotoUrl(displayedAuctionPlayer.photo)}
-                  alt={displayedAuctionPlayer.name}
-                  style={{
-                    position: "absolute",
-                    left: "50%",
-                    top: `-${auctionPhotoSize}px`,
-                    transform: "translateX(-50%)",
-                    width: `${auctionPhotoSize}px`,
-                    height: `${auctionPhotoSize}px`,
-                    borderRadius: 0,
-                    objectFit: "cover",
-                    border: "1.5px solid rgba(225,195,120,0.85)",
-                    boxShadow: "0 0 0 1px rgba(225,195,120,0.35), 0 10px 22px rgba(0,0,0,0.45)",
-                    background: "#101432",
-                    zIndex: 21
-                  }}
-                />
-                {/* Dark background content — clipped to trapezoid */}
                 <div style={{
                   background: "linear-gradient(180deg, rgba(22,28,70,0.98) 0%, rgba(10,12,32,0.98) 52%, rgba(7,9,24,0.98) 100%)",
-                  padding: "0 10px 10px",
+                  padding: isProjectorLayout ? "8px" : "10px",
                   position: "relative",
                   border: "1.5px solid rgba(225,195,120,0.85)",
-                  borderRadius: 12
+                  borderRadius: 12,
+                  height: "100%",
+                  boxSizing: "border-box",
+                  overflow: "hidden"
                 }}>
                   <div style={{
                     position: "absolute", left: 10, right: 10, top: 0, height: 5,
                     background: "linear-gradient(90deg, rgba(236,213,144,0.55), rgba(255,245,205,0.78), rgba(236,213,144,0.55))"
                   }} />
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, alignItems: "stretch" }}>
-                    <div style={{ background: "linear-gradient(180deg, rgba(26,30,66,0.95), rgba(12,14,36,0.95))", border: "1px solid rgba(214,186,116,0.65)", borderRadius: 10, padding: "10px 12px", display: "grid", gridTemplateColumns: "auto 1fr", alignContent: "center", alignItems: "center", rowGap: isProjectorLayout ? 5 : 6, columnGap: 8 }}>
-                      {[
-                        ["ROLE", displayedAuctionPlayer.role],
-                        ["AGE", displayedAuctionPlayer.age ?? "-"],
-                        ["VILLAGE", displayedAuctionPlayer.village || "-"],
-                        ["BATTING", displayedAuctionPlayer.batting_style || "-"],
-                        ["BOWLING", displayedAuctionPlayer.bowling_style || "-"],
-                        ["JERSEY NO", displayedAuctionPlayer.jersey_no || "-"]
-                      ].map(([label, value]) => (
-                        <React.Fragment key={label}>
-                          <div style={{ fontSize: auctionDetailLabelFont, letterSpacing: 0.8, fontWeight: "bold", color: "#d7c48a", lineHeight: 1, whiteSpace: "nowrap", display: "flex", alignItems: "center", minHeight: isProjectorLayout ? 14 : 16 }}>
-                            {label}
-                          </div>
-                          <div style={{ fontSize: auctionDetailValueFont, color: "#f1e9cc", lineHeight: 1, fontWeight: label === "ROLE" ? "bold" : 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", minHeight: isProjectorLayout ? 14 : 16 }} title={String(value)}>
-                            {value}
-                          </div>
-                        </React.Fragment>
-                      ))}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: isProjectorLayout ? 8 : 12, alignItems: "stretch", height: "100%", paddingTop: isProjectorLayout ? 8 : 10 }}>
+                    <div style={{
+                      minWidth: 0,
+                      minHeight: 0,
+                      borderRadius: 10,
+                      overflow: "hidden",
+                      border: "1px solid rgba(214,186,116,0.65)",
+                      background: "linear-gradient(180deg, rgba(26,30,66,0.95), rgba(12,14,36,0.95))",
+                      display: "flex",
+                      alignItems: "flex-end",
+                      justifyContent: "center"
+                    }}>
+                      <img
+                        src={toAbsolutePhotoUrl(displayedAuctionPlayer.photo)}
+                        alt={displayedAuctionPlayer.name}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "contain",
+                          objectPosition: "center bottom",
+                          display: "block",
+                          background: "#101432"
+                        }}
+                      />
                     </div>
-                    <div style={{ background: "linear-gradient(180deg, rgba(29,35,82,0.96), rgba(14,17,46,0.96))", border: "1px solid rgba(230,200,126,0.72)", borderRadius: 10, padding: "10px 12px", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0 }}>
-                      <div style={{ minWidth: 0, flex: 1, textAlign: "center" }}>
-                        <div style={{ color: "#ffffff", fontSize: auctionNameFont, lineHeight: 1.05, fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {displayedAuctionPlayer.name}
+                    <div style={{
+                      minWidth: 0,
+                      minHeight: 0,
+                      display: "grid",
+                      gridTemplateRows: "auto auto 1fr",
+                      gap: isProjectorLayout ? 8 : 10
+                    }}>
+                      <div style={{
+                        background: "linear-gradient(180deg, rgba(29,35,82,0.96), rgba(14,17,46,0.96))",
+                        border: "1px solid rgba(230,200,126,0.72)",
+                        borderRadius: 10,
+                        padding: isProjectorLayout ? "12px 14px" : "16px 18px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        minWidth: 0
+                      }}>
+                        <div style={{ minWidth: 0, flex: 1, textAlign: "center" }}>
+                          <div style={{ color: "#ffffff", fontSize: auctionNameFont, lineHeight: 1.05, fontWeight: "bold", whiteSpace: "normal", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {displayedAuctionPlayer.name}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div style={{ background: "linear-gradient(180deg, rgba(26,30,66,0.95), rgba(12,14,36,0.95))", border: "1px solid rgba(214,186,116,0.65)", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
-                      <div style={{ fontSize: 11, letterSpacing: 0.8, fontWeight: "bold", color: "#d7c48a" }}>CURRENT BID</div>
-                      <div style={{ marginTop: 6, display: "flex", alignItems: "baseline", gap: "4px", justifyContent: "center" }}>
-                        <div style={{ fontSize: auctionBidFont, color: "#f1e9cc", lineHeight: 1, fontWeight: "bold" }}>
-                          {(displayedAuction.currentBid || 0).toLocaleString()}
+                      <div style={{
+                        background: "linear-gradient(180deg, rgba(26,30,66,0.95), rgba(12,14,36,0.95))",
+                        border: "1px solid rgba(214,186,116,0.65)",
+                        borderRadius: 10,
+                        padding: isProjectorLayout ? "12px 14px" : "16px 18px",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "center",
+                        alignItems: "center"
+                      }}>
+                        <div style={{ fontSize: 11, letterSpacing: 0.8, fontWeight: "bold", color: "#d7c48a" }}>CURRENT BID</div>
+                        <div style={{ marginTop: 6, display: "flex", alignItems: "baseline", gap: "4px", justifyContent: "center", flexWrap: "wrap" }}>
+                          <div style={{ fontSize: auctionBidFont, color: "#f1e9cc", lineHeight: 1, fontWeight: "bold" }}>
+                            {(displayedAuction.currentBid || 0).toLocaleString("en-IN")}
+                          </div>
+                          <div style={{ fontSize: auctionMetricFont, color: "#f1e9cc", fontWeight: "600", lineHeight: 1 }}>coins</div>
                         </div>
-                        <div style={{ fontSize: "clamp(8px, 0.8vw, 12px)", color: "#f1e9cc", fontWeight: "500" }}>coins</div>
+                      </div>
+                      <div style={{
+                        background: "linear-gradient(180deg, rgba(26,30,66,0.95), rgba(12,14,36,0.95))",
+                        border: "1px solid rgba(214,186,116,0.65)",
+                        borderRadius: 10,
+                        padding: isProjectorLayout ? "10px 12px" : "12px 14px",
+                        display: "grid",
+                        gridTemplateColumns: "auto 1fr",
+                        alignContent: "start",
+                        alignItems: "center",
+                        rowGap: isProjectorLayout ? 6 : 8,
+                        columnGap: isProjectorLayout ? 8 : 10,
+                        minHeight: 0,
+                        overflow: "hidden"
+                      }}>
+                        {[
+                          ["ROLE", displayedAuctionPlayer.role],
+                          ["AGE", displayedAuctionPlayer.age ?? "-"],
+                          ["VILLAGE", displayedAuctionPlayer.village || "-"],
+                          ["BATTING", formatBattingStyle(displayedAuctionPlayer.batting_style)],
+                          ["BOWLING", formatBowlingStyle(displayedAuctionPlayer.bowling_style)],
+                          ["JERSEY NO", displayedAuctionPlayer.jersey_no || "-"]
+                        ].map(([label, value]) => (
+                          <React.Fragment key={label}>
+                            <div style={{ fontSize: auctionDetailLabelFont, letterSpacing: 0.8, fontWeight: "bold", color: "#d7c48a", lineHeight: 1.15, whiteSpace: "nowrap", display: "flex", alignItems: "center" }}>
+                              {label}
+                            </div>
+                            <div style={{ fontSize: auctionDetailValueFont, color: "#f1e9cc", lineHeight: 1.15, fontWeight: label === "ROLE" ? "bold" : 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center" }} title={String(value)}>
+                              {value}
+                            </div>
+                          </React.Fragment>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -1266,6 +1326,22 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                           textOverflow: "ellipsis"
                         }}>
                           {p ? `Price: ${p.sold_price ?? "-"} | Age: ${p.age ?? "-"}` : "Price: - | Age: -"}
+                        </div>
+                        <div style={{
+                          marginTop: 1,
+                          color: "#9fd0ff",
+                          fontSize: teamPlayerMetaFont,
+                          lineHeight: 1.1,
+                          whiteSpace: "normal",
+                          wordBreak: "break-word",
+                          overflowWrap: "anywhere",
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis"
+                        }}>
+                          {p ? `Bat: ${formatBattingStyle(p.batting_style)} | Bowl: ${formatBowlingStyle(p.bowling_style)}` : "Bat: - | Bowl: -"}
                         </div>
                         <div style={{
                           marginTop: 1,

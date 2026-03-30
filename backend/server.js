@@ -111,12 +111,21 @@ const initializeDatabase = () => {
           seedDatabaseFromConfig(config);
         }
 
-        // Keep team metadata in sync with config without touching live balances.
+        // Keep team metadata in sync with config.
+        // Before auction starts (no history), also align balances with config.
+        const shouldSyncBalances = Number(stats.historyCount || 0) === 0;
         config.teams.forEach((team) => {
-          db.run(
-            "UPDATE teams SET name = ?, photo = ?, owner_name = ?, photoowner = ? WHERE id = ?",
-            [team.name, team.photo, team.owner_name ?? null, team.photoowner ?? null, team.id]
-          );
+          if (shouldSyncBalances) {
+            db.run(
+              "UPDATE teams SET name = ?, balance = ?, photo = ?, owner_name = ?, photoowner = ? WHERE id = ?",
+              [team.name, team.balance, team.photo, team.owner_name ?? null, team.photoowner ?? null, team.id]
+            );
+          } else {
+            db.run(
+              "UPDATE teams SET name = ?, photo = ?, owner_name = ?, photoowner = ? WHERE id = ?",
+              [team.name, team.photo, team.owner_name ?? null, team.photoowner ?? null, team.id]
+            );
+          }
         });
       });
     }
@@ -152,16 +161,23 @@ const fetchTeamDetails = (teamId, callback) => {
       (playersErr, rows) => {
         if (playersErr) return callback(playersErr);
 
-        const players = rows.map((row) => ({
-          id: row.id,
-          photo: row.photo,
-          name: row.name,
-          role: row.role,
-          age: row.age,
-          mobile_number: row.mobile_number,
-          sold_status: row.role === "Captain" ? "CAPTAIN_PICK" : "SOLD",
-          sold_price: row.role === "Captain" ? "NIL" : (row.final_price != null ? row.final_price : row.base_price)
-        }));
+        const configPlayerMap = getConfigPlayerMap();
+        const players = rows.map((row) => {
+          const cfgPlayer = configPlayerMap.get(Number(row.id));
+          return {
+            id: row.id,
+            photo: cfgPlayer?.photo || row.photo,
+            name: cfgPlayer?.name || row.name,
+            role: cfgPlayer?.role || row.role,
+            age: cfgPlayer?.age ?? row.age,
+            mobile_number: cfgPlayer?.mobile_number || row.mobile_number,
+            batting_style: cfgPlayer?.batting_style ?? null,
+            bowling_style: cfgPlayer?.bowling_style ?? null,
+            jersey_no: cfgPlayer?.jersey_no ?? null,
+            sold_status: row.role === "Captain" ? "CAPTAIN_PICK" : "SOLD",
+            sold_price: row.role === "Captain" ? "NIL" : (row.final_price != null ? row.final_price : row.base_price)
+          };
+        });
 
         callback(null, {
           team_id: teamRow.id,
@@ -291,6 +307,14 @@ app.post('/auction/sell', (req, res) => {
       return res.status(404).json({ error: "Team not found" });
     }
 
+    db.get("SELECT relist_blocked_team_id FROM players WHERE id = ?", [playerId], (blockCheckErr, playerCheck) => {
+      if (blockCheckErr) return res.status(500).json({ error: blockCheckErr.message });
+      if (playerCheck?.relist_blocked_team_id && Number(playerCheck.relist_blocked_team_id) === Number(teamId)) {
+        const errMsg = `${team.name} released this player and cannot bid on them again.`;
+        io.emit('auctionError', { message: errMsg, teamId });
+        return res.status(400).json({ error: errMsg });
+      }
+
     db.get("SELECT COUNT(*) AS playerCount FROM players WHERE sold_to_team = ?", [teamId], (err, playerCountRow) => {
       if (err) {
         return res.status(500).json({ error: err.message });
@@ -316,7 +340,7 @@ app.post('/auction/sell', (req, res) => {
       }
 
       db.serialize(() => {
-        db.run("UPDATE players SET sold_to_team = ? WHERE id = ?", [teamId, playerId], function(err) {
+        db.run("UPDATE players SET sold_to_team = ?, relist_blocked_team_id = NULL WHERE id = ?", [teamId, playerId], function(err) {
           if (err) {
             return res.status(500).json({ error: err.message });
           }
@@ -376,6 +400,7 @@ app.post('/auction/sell', (req, res) => {
         });
       });
     });
+    }); // close relist blocked check
   });
 });
 
@@ -420,7 +445,7 @@ app.post('/auction/relist-player', (req, res) => {
           const refundAmount = Number(historyRow?.final_price ?? player.base_price ?? 0);
 
           db.serialize(() => {
-            db.run("UPDATE players SET sold_to_team = NULL, auction_category = 'RELIST' WHERE id = ?", [playerId], function(updatePlayerErr) {
+            db.run("UPDATE players SET sold_to_team = NULL, auction_category = 'RELIST', relist_blocked_team_id = ? WHERE id = ?", [soldTeamId, playerId], function(updatePlayerErr) {
               if (updatePlayerErr) {
                 return res.status(500).json({ error: updatePlayerErr.message });
               }
@@ -482,6 +507,30 @@ app.post('/auction/relist-player', (req, res) => {
           });
         }
       );
+    });
+  });
+});
+
+app.post('/auction/undo-unsold', (req, res) => {
+  const playerId = Number(req.body?.playerId);
+  const previousCategory = String(req.body?.previousCategory || 'NEW').toUpperCase();
+  if (!playerId) return res.status(400).json({ error: 'Invalid playerId' });
+
+  const safeCategory = ['NEW', 'UNSOLD', 'RELIST'].includes(previousCategory) ? previousCategory : 'NEW';
+
+  db.get('SELECT * FROM players WHERE id = ?', [playerId], (err, player) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!player) return res.status(404).json({ error: 'Player not found' });
+    if (player.sold_to_team) return res.status(400).json({ error: 'Player is already sold to a team' });
+
+    db.run('UPDATE players SET auction_category = ? WHERE id = ?', [safeCategory, playerId], function(updateErr) {
+      if (updateErr) return res.status(500).json({ error: updateErr.message });
+
+      db.get('SELECT * FROM players WHERE id = ?', [playerId], (fetchErr, updatedPlayer) => {
+        if (fetchErr) return res.status(500).json({ error: fetchErr.message });
+        io.emit('refresh');
+        res.json({ message: 'Unsold action undone', updatedPlayer });
+      });
     });
   });
 });

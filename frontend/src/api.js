@@ -59,3 +59,12 @@ export async function relistPlayer(playerId) {
   });
   return res.json();
 }
+
+export async function undoUnsold(playerId, previousCategory) {
+  const res = await fetch(`${API_URL}/auction/undo-unsold`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ playerId, previousCategory })
+  });
+  return res.json();
+}

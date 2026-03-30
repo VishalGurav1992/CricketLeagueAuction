@@ -22,7 +22,7 @@
       "id": 3,
       "name": "Sidda Rameshwar XI",
       "owner_name": "Sanmay Tamse",
-      "balance": 100000,
+      "balance": 85000,
       "photo": "/images/3logo Sidda Rameshwar XI.png",
       "photoowner": "/images/3owner Sanmay Tamse.png",
       "captain_player_id": 3
@@ -31,7 +31,7 @@
       "id": 4,
       "name": "Mudga Game Changer",
       "owner_name": "Vijay Gunagi",
-      "balance": 100000,
+      "balance": 85000,
       "photo": "/images/4logo Mudga Game Changer.png",
       "photoowner": "/images/4owner Vijay Gunagi.png",
       "captain_player_id": 4
@@ -1274,7 +1274,7 @@
       "jersey_name": "Anand",
       "jersey_no": "24"
     },
-    {
+    {                                              
       "id": 88,
       "name": "Pandurang Janu Sawant",
       "role": "All-Rounder",

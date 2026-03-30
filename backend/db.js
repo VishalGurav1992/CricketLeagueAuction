@@ -59,6 +59,12 @@ db.serialize(() => {
     }
   });
 
+  db.run("ALTER TABLE players ADD COLUMN relist_blocked_team_id INTEGER", (err) => {
+    if (err && !err.message.includes("duplicate column name")) {
+      console.error(err.message);
+    }
+  });
+
   db.run(`CREATE TABLE IF NOT EXISTS auction_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     player_id INTEGER,

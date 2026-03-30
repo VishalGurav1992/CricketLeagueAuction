@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { sellPlayer, selectPlayerForAuction, updateBid, markPlayerUnsold } from "../api";
+import { sellPlayer, selectPlayerForAuction, updateBid, markPlayerUnsold, relistPlayer, undoUnsold } from "../api";
 
 export default function AuctioneerPanel({ teams, players, socket, setTeams, setPlayers, onShowTeams }) {
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -7,6 +7,7 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
   const [bid, setBid] = useState(0);
   const [message, setMessage] = useState("");
   const [selectionMode, setSelectionMode] = useState("auto");
+  const [lastAction, setLastAction] = useState(null); // { type: 'sold'|'unsold', playerId, playerName, teamId?, price?, previousCategory? }
   const [heartbeatEnabled, setHeartbeatEnabled] = useState(false);
   const [leagueAudioEnabled, setLeagueAudioEnabled] = useState(false);
   const heartbeatEnabledRef = useRef(false);
@@ -18,10 +19,22 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
   const leagueAudioRef = useRef(null);
   const soldAudioRef = useRef(null);
 
+  const getAuctionCategoryOrder = (player) => {
+    const category = String(player?.auction_category || "NEW").toUpperCase();
+    if (category === "NEW") return 0;
+    if (category === "RELIST") return 1;
+    if (category === "UNSOLD") return 2;
+    return 3;
+  };
+
   const getAvailablePlayers = () => {
     return players
       .filter(p => !p.sold_to_team && String(p.role || "").toLowerCase() !== "captain")
-      .sort((a, b) => Number(a.id) - Number(b.id));
+      .sort((a, b) => {
+        const categoryDiff = getAuctionCategoryOrder(a) - getAuctionCategoryOrder(b);
+        if (categoryDiff !== 0) return categoryDiff;
+        return Number(a.id) - Number(b.id);
+      });
   };
 
   const getPlayerAuctionCategory = (player) => {
@@ -31,15 +44,15 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
     return "NEW TO AUCTION";
   };
 
-  // Pick next player: NEW first, then UNSOLD, then RELIST.
+  // Pick next player: NEW first, then RELIST, then UNSOLD.
   const pickNextPlayer = (excludeId) => {
     const available = getAvailablePlayers().filter(p => p.id != excludeId);
     const newPlayers = available.filter(p => String(p.auction_category || "NEW").toUpperCase() === "NEW");
-    const unsoldPlayers = available.filter(p => String(p.auction_category || "NEW").toUpperCase() === "UNSOLD");
     const relistPlayers = available.filter(p => String(p.auction_category || "NEW").toUpperCase() === "RELIST");
+    const unsoldPlayers = available.filter(p => String(p.auction_category || "NEW").toUpperCase() === "UNSOLD");
     const pool = newPlayers.length > 0
       ? newPlayers
-      : (unsoldPlayers.length > 0 ? unsoldPlayers : relistPlayers);
+      : (relistPlayers.length > 0 ? relistPlayers : unsoldPlayers);
     return pool.length > 0 ? String(pool[Math.floor(Math.random() * pool.length)].id) : null;
   };
 
@@ -63,11 +76,11 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
 
     if (!currentStillAvailable) {
       const newPlayers = availablePlayers.filter(p => String(p.auction_category || "NEW").toUpperCase() === "NEW");
-      const unsoldPlayers = availablePlayers.filter(p => String(p.auction_category || "NEW").toUpperCase() === "UNSOLD");
       const relistPlayers = availablePlayers.filter(p => String(p.auction_category || "NEW").toUpperCase() === "RELIST");
+      const unsoldPlayers = availablePlayers.filter(p => String(p.auction_category || "NEW").toUpperCase() === "UNSOLD");
       const pool = newPlayers.length > 0
         ? newPlayers
-        : (unsoldPlayers.length > 0 ? unsoldPlayers : relistPlayers);
+        : (relistPlayers.length > 0 ? relistPlayers : unsoldPlayers);
       setSelectedPlayer(String(pool[Math.floor(Math.random() * pool.length)].id));
     }
   }, [players, selectedPlayer, selectionMode]);
@@ -130,6 +143,8 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
       if (response.updatedPlayer) {
         setPlayers(prevPlayers => prevPlayers.map(p => p.id == response.updatedPlayer.id ? response.updatedPlayer : p));
       }
+      const soldPlayerName = players.find(p => p.id == playerIdToSell)?.name || `Player #${playerIdToSell}`;
+      setLastAction({ type: 'sold', playerId: playerIdToSell, playerName: soldPlayerName, teamId: teamIdToSell, price: finalBid });
       setSelectedPlayer(nextPlayerId);
       setSelectedTeam(null);
       if (!nextPlayerId) {
@@ -163,6 +178,10 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
         setPlayers(prevPlayers => prevPlayers.map(p => p.id == response.updatedPlayer.id ? response.updatedPlayer : p));
       }
 
+      const unsoldPlayerName = players.find(p => p.id == selectedPlayer)?.name || `Player #${selectedPlayer}`;
+      const prevCat = players.find(p => p.id == selectedPlayer)?.auction_category || 'NEW';
+      setLastAction({ type: 'unsold', playerId: selectedPlayer, playerName: unsoldPlayerName, previousCategory: prevCat });
+
       const nextPlayerId = selectionMode === "auto" ? pickNextPlayer(selectedPlayer) : null;
       setSelectedPlayer(nextPlayerId);
       setSelectedTeam(null);
@@ -172,6 +191,46 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
       setTimeout(() => setMessage(""), 3000);
     } catch (error) {
       setMessage("Error moving player to unsold pool");
+      setTimeout(() => setMessage(""), 3000);
+    }
+  };
+
+  const handleUndo = async () => {
+    if (!lastAction) return;
+    const undoActionLabel = lastAction.type === 'sold' ? 'sell' : 'unsold';
+    const confirmed = window.confirm(`Are you sure you want to undo the last ${undoActionLabel} action for ${lastAction.playerName}?`);
+    if (!confirmed) return;
+    try {
+      if (lastAction.type === 'sold') {
+        const response = await relistPlayer(lastAction.playerId);
+        if (response?.error) {
+          setMessage(response.error);
+          setTimeout(() => setMessage(""), 3000);
+          return;
+        }
+        if (response.updatedTeam) {
+          setTeams(prevTeams => prevTeams.map(t => t.id == response.updatedTeam.id ? response.updatedTeam : t));
+        }
+        if (response.updatedPlayer) {
+          setPlayers(prevPlayers => prevPlayers.map(p => p.id == response.updatedPlayer.id ? response.updatedPlayer : p));
+        }
+        setMessage(`Undo: ${lastAction.playerName} returned to auction pool.`);
+      } else if (lastAction.type === 'unsold') {
+        const response = await undoUnsold(lastAction.playerId, lastAction.previousCategory);
+        if (response?.error) {
+          setMessage(response.error);
+          setTimeout(() => setMessage(""), 3000);
+          return;
+        }
+        if (response.updatedPlayer) {
+          setPlayers(prevPlayers => prevPlayers.map(p => p.id == response.updatedPlayer.id ? response.updatedPlayer : p));
+        }
+        setMessage(`Undo: ${lastAction.playerName} restored from unsold.`);
+      }
+      setLastAction(null);
+      setTimeout(() => setMessage(""), 3000);
+    } catch (err) {
+      setMessage("Error undoing last action");
       setTimeout(() => setMessage(""), 3000);
     }
   };
@@ -432,7 +491,7 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
               {getAvailablePlayers().map((p) => {
                 return (
                   <option key={p.id} value={p.id}>
-                    {p.name} ({getPlayerAuctionCategory(p)})
+                    #{p.id} - {p.name} ({getPlayerAuctionCategory(p)})
                   </option>
                 );
               })}
@@ -448,7 +507,7 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
             {(() => {
               const player = players.find(p => p.id == selectedPlayer);
               if (!player) return "Loading player...";
-              return `${player.name} - ${getPlayerAuctionCategory(player)}`;
+              return `#${player.id} - ${player.name} - ${getPlayerAuctionCategory(player)}`;
             })()}
           </div>
         ) : (
@@ -466,9 +525,16 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
           style={{ width: "100%", padding: "8px", marginBottom: 10 }}
         >
           <option value="">Select Team</option>
-          {teams.map(t => (
-            <option key={t.id} value={t.id}>{t.name} (Balance: ₹{t.balance})</option>
-          ))}
+          {teams.map(t => {
+            const currentPlayerObj = players.find(p => p.id == selectedPlayer);
+            const isBlocked = !!currentPlayerObj?.relist_blocked_team_id &&
+              Number(currentPlayerObj.relist_blocked_team_id) === Number(t.id);
+            return (
+              <option key={t.id} value={t.id} disabled={isBlocked}>
+                {t.name} (Balance: ₹{t.balance}){isBlocked ? ' — BLOCKED' : ''}
+              </option>
+            );
+          })}
         </select>
       </div>
 
@@ -501,6 +567,12 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
           >
             +₹5000
           </button>
+          <button
+            onClick={() => incrementBid(10000)}
+            style={{ flex: 1, padding: "10px", background: "#20c997", color: "white", border: "none", borderRadius: "4px" }}
+          >
+            +₹10000
+          </button>
         </div>
 
         <div style={{ display: "flex", gap: "10px", marginBottom: 10 }}>
@@ -521,6 +593,12 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
             style={{ flex: 1, padding: "10px", background: "#343a40", color: "white", border: "none", borderRadius: "4px" }}
           >
             -₹5000
+          </button>
+          <button
+            onClick={() => decrementBid(10000)}
+            style={{ flex: 1, padding: "10px", background: "#212529", color: "white", border: "none", borderRadius: "4px" }}
+          >
+            -₹10000
           </button>
         </div>
       </div>
@@ -560,7 +638,44 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
         </button>
       </div>
 
+      <div style={{ marginBottom: 16 }}>
+        <button
+          onClick={handleUndo}
+          disabled={!lastAction}
+          style={{
+            width: "100%",
+            padding: "11px",
+            background: lastAction ? "#5a3e8b" : "#9aa0a6",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            fontSize: "14px",
+            fontWeight: "bold",
+            cursor: lastAction ? "pointer" : "not-allowed"
+          }}
+        >
+          {lastAction
+            ? `↩ UNDO — ${lastAction.type === 'sold' ? 'Sold' : 'Unsold'}: ${lastAction.playerName}`
+            : "↩ UNDO (no recent action)"}
+        </button>
+      </div>
+
       <hr />
+      <div style={{ margin: "16px 0" }}>
+        <label style={{ display: "block", marginBottom: 8, fontWeight: "bold" }}>Show Team Details On Dashboard:</label>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
+          {teams.map(t => (
+            <button
+              key={`details-${t.id}`}
+              onClick={() => handleTeamDetailsClick(t.id)}
+              style={{ padding: "10px", background: "#1f3b73", color: "white", border: "none", borderRadius: "4px", fontWeight: "bold" }}
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div style={{ margin: "16px 0 10px" }}>
         <label style={{ display: "block", marginBottom: 8, fontWeight: "bold" }}>Show Teams:</label>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
@@ -613,21 +728,6 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
         >
           SHOW ALL TEAMS
         </button>
-      </div>
-
-      <div style={{ margin: "16px 0" }}>
-        <label style={{ display: "block", marginBottom: 8, fontWeight: "bold" }}>Show Team Details On Dashboard:</label>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
-          {teams.map(t => (
-            <button
-              key={`details-${t.id}`}
-              onClick={() => handleTeamDetailsClick(t.id)}
-              style={{ padding: "10px", background: "#1f3b73", color: "white", border: "none", borderRadius: "4px", fontWeight: "bold" }}
-            >
-              {t.name}
-            </button>
-          ))}
-        </div>
       </div>
 
       <button 
