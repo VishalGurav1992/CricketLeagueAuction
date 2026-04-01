@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { sellPlayer, selectPlayerForAuction, updateBid, markPlayerUnsold, relistPlayer, undoUnsold } from "../api";
 
-export default function AuctioneerPanel({ teams, players, socket, setTeams, setPlayers, onShowTeams }) {
+export default function AuctioneerPanel({ teams, players, socket, setTeams, setPlayers, onShowTeams, onShowTeamDetails }) {
+  const TEAM_MAX_PLAYERS = 15;
+  const MIN_PLAYER_COST = 1000;
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [bid, setBid] = useState(0);
@@ -113,11 +115,46 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
     }
   }, [bid, selectedPlayer]);
 
+  const getSellBalanceWarning = (teamId, finalBid) => {
+    const team = teams.find((entry) => Number(entry.id) === Number(teamId));
+    if (!team) return null;
+
+    const currentPlayerCount = players.filter((player) => Number(player.sold_to_team) === Number(teamId)).length;
+    const projectedPlayerCount = currentPlayerCount + 1;
+    const remainingSlots = Math.max(0, TEAM_MAX_PLAYERS - projectedPlayerCount);
+    const balanceAfterSale = Number(team.balance || 0) - Number(finalBid || 0);
+    const minimumRequiredBalance = remainingSlots * MIN_PLAYER_COST;
+
+    if (balanceAfterSale >= minimumRequiredBalance) {
+      return null;
+    }
+
+    const shortfall = minimumRequiredBalance - balanceAfterSale;
+    return {
+      teamId: Number(team.id),
+      teamName: team.name,
+      currentPlayerCount,
+      projectedPlayerCount,
+      remainingSlots,
+      finalBid: Number(finalBid || 0),
+      balanceAfterSale,
+      minimumRequiredBalance,
+      shortfall,
+      message: `${team.name} will have only Rs.${balanceAfterSale.toLocaleString('en-IN')} left after this sale, but needs at least Rs.${minimumRequiredBalance.toLocaleString('en-IN')} to complete the remaining ${remainingSlots} players. Shortfall: Rs.${shortfall.toLocaleString('en-IN')}. If you continue, the team might later need to sell its current top player.`
+    };
+  };
+
   const handleSell = async () => {
     if (!selectedPlayer || !selectedTeam || bid <= 0) return;
-    const confirmed = window.confirm("Are you sure you want to sell this player?");
+    const balanceWarning = getSellBalanceWarning(selectedTeam, bid);
+    if (balanceWarning && socket) {
+      socket.emit("teamBalanceWarning", balanceWarning);
+    }
+    const confirmationMessage = balanceWarning
+      ? `${balanceWarning.message}\n\nDo you still want to sell this player?`
+      : "Are you sure you want to sell this player?";
+    const confirmed = window.confirm(confirmationMessage);
     if (!confirmed) return;
-    playSoldSound();
     stopHeartbeat();
     heartbeatEnabledRef.current = false;
     setHeartbeatEnabled(false);
@@ -136,6 +173,8 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
         setTimeout(() => setMessage(""), 3000);
         return;
       }
+
+      playSoldSound();
 
       if (response.updatedTeam) {
         setTeams(prevTeams => prevTeams.map(t => t.id == response.updatedTeam.id ? response.updatedTeam : t));
@@ -202,7 +241,7 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
     if (!confirmed) return;
     try {
       if (lastAction.type === 'sold') {
-        const response = await relistPlayer(lastAction.playerId);
+        const response = await relistPlayer(lastAction.playerId, { skipTeamBlock: true });
         if (response?.error) {
           setMessage(response.error);
           setTimeout(() => setMessage(""), 3000);
@@ -390,6 +429,10 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
   };
 
   const handleTeamDetailsClick = (teamId) => {
+    if (onShowTeamDetails) {
+      onShowTeamDetails(teamId);
+      return;
+    }
     if (!socket) return;
     socket.emit("selectTeamForDashboard", { teamId });
   };

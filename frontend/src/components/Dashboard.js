@@ -49,7 +49,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
   useEffect(() => {
     if (!socket) return;
 
-    socket.on("playerSold", (data) => {
+    const handlePlayerSoldPopup = (data) => {
       const { playerId, teamId, finalPrice } = data;
       const player = players.find(p => p.id == playerId);
       const team = teams.find(t => t.id == teamId);
@@ -70,12 +70,29 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
           setSoldPlayerInfo(null);
         }, duration);
       }
-    });
+    };
+
+    socket.on("playerSold", handlePlayerSoldPopup);
 
     return () => {
-      socket.off("playerSold");
+      socket.off("playerSold", handlePlayerSoldPopup);
     };
   }, [socket, players, teams, soundConfig]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleTeamBalanceWarning = (data) => {
+      const message = data?.message || "Selected team may not have enough balance to complete the squad after this sale.";
+      window.alert(message);
+    };
+
+    socket.on("teamBalanceWarning", handleTeamBalanceWarning);
+
+    return () => {
+      socket.off("teamBalanceWarning", handleTeamBalanceWarning);
+    };
+  }, [socket]);
 
   useEffect(() => {
     if (hideAuctionTimerRef.current) {
@@ -179,6 +196,11 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
   }, [requestedFullscreenTeamId, fullscreenRequestNonce, teams]);
 
   const teamDetailPlayers = selectedTeamDetails?.players || [];
+  const ownerPlayerIdSet = new Set(
+    teams
+      .map((team) => Number(team.owner_player_id))
+      .filter((id) => Number.isFinite(id) && id > 0)
+  );
   const displayedAuctionPlayer = displayedAuction?.player
     ? {
         ...displayedAuction.player,
@@ -189,6 +211,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
     const candidates = teamDetailPlayers.filter((p) => {
       if (!p) return false;
       if (String(p.role || "").toLowerCase() === "captain") return false;
+      if (ownerPlayerIdSet.has(Number(p.id))) return false;
       const numericPrice = Number(p.sold_price);
       return Number.isFinite(numericPrice);
     });
@@ -285,6 +308,10 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
 
   const handleRelistFromTeamDetails = async (playerId) => {
     if (!playerId || !socket) return;
+    if (ownerPlayerIdSet.has(Number(playerId))) {
+      window.alert("Owner player cannot be sold/relisted.");
+      return;
+    }
     const confirmed = window.confirm("Are you sure you want to sell the player?");
     if (!confirmed) return;
     setSellingPlayerId(playerId);
@@ -423,10 +450,10 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
         overflow: "hidden",
         padding: rootPadding,
         boxSizing: "border-box",
-        backgroundColor: "#f8f9fa",
+        backgroundColor: isBackgroundEnabled ? "#f8f9fa" : "#f5ecd3",
         backgroundImage: isBackgroundEnabled
           ? "url('/pictures/background.JPG')"
-          : "none",
+          : "linear-gradient(180deg, rgba(246,236,205,0.95) 0%, rgba(224,205,150,0.9) 100%)",
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",
@@ -438,15 +465,31 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
       <div style={{ position: "relative", minHeight: headerMinHeight, display: "flex", alignItems: "flex-end", justifyContent: "center", marginBottom: isProjectorLayout ? 0 : 2 }}>
         <h1 ref={titleRef} className="dashboard-title" style={{
           textAlign: "center",
-          color: "#ffffff",
+          color: isBackgroundEnabled ? "#ffffff" : "#233563",
           margin: 0,
           fontSize: titleFontSize,
           lineHeight: 1.05,
           letterSpacing: titleLetterSpacing,
           fontWeight: 900,
           textTransform: "uppercase",
-          textShadow: "0 1px 0 #d8be7a, 0 2px 0 #bba062, 0 3px 0 #8d7646, 0 10px 18px rgba(0,0,0,0.55)"
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: isProjectorLayout ? 8 : 10,
+          textShadow: isBackgroundEnabled
+            ? "0 1px 0 #d8be7a, 0 2px 0 #bba062, 0 3px 0 #8d7646, 0 10px 18px rgba(0,0,0,0.55)"
+            : "0 1px 0 rgba(255,255,255,0.65), 0 6px 14px rgba(35,53,99,0.22)"
         }}>
+          <img
+            src={toAbsolutePhotoUrl("/images/spl_logo.png")}
+            alt="SPL Logo"
+            style={{
+              height: "1.2em",
+              width: "auto",
+              display: "block",
+              objectFit: "contain"
+            }}
+          />
           Siddar Premier League Auction 2026
         </h1>
         <div style={{ position: "absolute", right: 0, top: 0, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "80%", alignItems: "center" }}>
@@ -638,8 +681,8 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                 style={{
                   position: "absolute",
                   left: "50%",
-                  top: 0,
-                  bottom: 0,
+                  top: 2,
+                  bottom: 2,
                   width: titleWidth ? `${Math.round(titleWidth)}px` : "100%",
                   transform: showAuctionCard ? "translateX(-50%) translateY(0) scale(1)" : "translateX(-50%) translateY(28px) scale(0.98)",
                   opacity: showAuctionCard ? 1 : 0,
@@ -674,17 +717,17 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                       border: "1px solid rgba(214,186,116,0.65)",
                       background: "linear-gradient(180deg, rgba(26,30,66,0.95), rgba(12,14,36,0.95))",
                       display: "flex",
-                      alignItems: "flex-end",
+                      alignItems: "center",
                       justifyContent: "center"
                     }}>
                       <img
                         src={toAbsolutePhotoUrl(displayedAuctionPlayer.photo)}
                         alt={displayedAuctionPlayer.name}
                         style={{
-                          width: "100%",
-                          height: "100%",
-                          objectFit: "contain",
-                          objectPosition: "center bottom",
+                          width: "auto",
+                          height: "auto",
+                          maxWidth: "100%",
+                          maxHeight: "100%",
                           display: "block",
                           background: "#101432"
                         }}
@@ -776,7 +819,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.82)",
+          background: "rgba(16,22,42,0.58)",
           zIndex: 880,
           display: "flex",
           alignItems: "stretch",
@@ -787,13 +830,13 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
             inset: 0,
             padding: isProjectorLayout ? "12px" : "18px",
             boxSizing: "border-box",
-            background: "linear-gradient(180deg, rgba(22,28,70,0.97) 0%, rgba(8,10,24,0.97) 100%)",
+            background: "linear-gradient(180deg, rgba(248,241,220,0.94) 0%, rgba(217,196,142,0.9) 100%)",
             display: "flex",
             flexDirection: "column",
             gap: isProjectorLayout ? 10 : 14
           }}>
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", position: "relative", minHeight: isProjectorLayout ? "28px" : "36px" }}>
-              <div style={{ color: "#f1e9cc", fontWeight: "bold", fontSize: isProjectorLayout ? "28px" : "36px", letterSpacing: 0.8, textAlign: "center" }}>
+              <div style={{ color: "#20305f", fontWeight: "bold", fontSize: isProjectorLayout ? "28px" : "36px", letterSpacing: 0.8, textAlign: "center", textShadow: "0 1px 0 rgba(255,255,255,0.45)" }}>
                 Siddar Premier League 2026
               </div>
               <button
@@ -844,9 +887,9 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                   <div
                     key={`teams-overlay-${team.id}`}
                     style={{
-                      background: "linear-gradient(180deg, rgba(22,28,70,0.98) 0%, rgba(10,12,32,0.98) 52%, rgba(7,9,24,0.98) 100%)",
-                      border: "1px solid rgba(225,195,120,0.65)",
-                      boxShadow: "0 10px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)",
+                      background: "linear-gradient(180deg, rgba(52,70,130,0.95) 0%, rgba(35,52,108,0.95) 52%, rgba(26,40,90,0.95) 100%)",
+                      border: "1px solid rgba(223,190,114,0.88)",
+                      boxShadow: "0 10px 20px rgba(20,24,40,0.28), inset 0 1px 0 rgba(255,255,255,0.12)",
                       borderRadius: 10,
                       overflow: "hidden",
                       display: "grid",
@@ -860,7 +903,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                       justifyContent: "center",
                       padding: isProjectorLayout ? 8 : 10,
                       minHeight: 0,
-                      background: "rgba(8,10,24,0.45)",
+                      background: "rgba(18,29,70,0.34)",
                       overflow: "hidden"
                     }}>
                       <img
@@ -879,7 +922,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                       position: "relative",
                       overflow: "hidden",
                       minHeight: 0,
-                      background: "#070a1d",
+                      background: "#1b2b66",
                       display: "grid",
                       gridTemplateRows: "1fr auto",
                       height: "100%"
@@ -898,8 +941,8 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                         />
                       </div>
                       <div style={{
-                        background: "rgba(8,10,24,0.92)",
-                        color: "#f1e9cc",
+                        background: "rgba(16,28,74,0.84)",
+                        color: "#fff4cc",
                         fontWeight: "bold",
                         fontSize: isProjectorLayout ? "16px" : "21px",
                         lineHeight: 1.1,
@@ -1263,7 +1306,8 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                             style={{
                               width: "100%",
                               height: "100%",
-                              objectFit: "cover",
+                              objectFit: "contain",
+                              objectPosition: "center",
                               display: "block"
                             }}
                           />

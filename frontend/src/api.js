@@ -51,11 +51,12 @@ export async function sellPlayer(playerId, teamId, finalPrice) {
   return res.json();
 }
 
-export async function relistPlayer(playerId) {
+export async function relistPlayer(playerId, options = {}) {
+  const { skipTeamBlock = false } = options;
   const res = await fetch(`${API_URL}/auction/relist-player`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ playerId })
+    body: JSON.stringify({ playerId, skipTeamBlock })
   });
   return res.json();
 }

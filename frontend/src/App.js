@@ -17,11 +17,31 @@ function App() {
   const selectedTeamIdRef = useRef(null);
   const selectedTeamDetailsRef = useRef(null);
   const teamsRef = useRef([]);
+  const pendingTeamDetailsRequestIdRef = useRef(null);
+  const pendingTeamDetailsTeamIdRef = useRef(null);
+
+  const handleCloseTeamDetails = () => {
+    pendingTeamDetailsRequestIdRef.current = null;
+    pendingTeamDetailsTeamIdRef.current = null;
+    selectedTeamIdRef.current = null;
+    selectedTeamDetailsRef.current = null;
+    setSelectedTeamDetails(null);
+  };
+
+  const handleRequestTeamDetails = (teamId) => {
+    const numericTeamId = Number(teamId);
+    if (!socket || !numericTeamId) return;
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    pendingTeamDetailsRequestIdRef.current = requestId;
+    pendingTeamDetailsTeamIdRef.current = numericTeamId;
+    socket.emit("selectTeamForDashboard", { teamId: numericTeamId, requestId });
+  };
 
   // Determine which mode to run in (dashboard or auctioneer)
   const mode = process.env.REACT_APP_MODE || "both";
   const isDashboardMode = mode === "dashboard";
   const isAuctioneerMode = mode === "auctioneer";
+  const shouldGateTeamDetailsOpen = !isDashboardMode;
 
   useEffect(() => {
     // Initialize Socket.io connection
@@ -29,6 +49,16 @@ function App() {
     setSocket(newSocket);
 
     return () => newSocket.close();
+  }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, []);
 
   useEffect(() => {
@@ -63,6 +93,12 @@ function App() {
     if (!socket) return;
 
     const handlePlayerSold = async (data) => {
+      // Prevent stale team fullscreen request from re-opening during sell refresh updates.
+      setRequestedFullscreenTeamId(null);
+      setShowTeamsOverlay(false);
+      pendingTeamDetailsRequestIdRef.current = null;
+      pendingTeamDetailsTeamIdRef.current = null;
+
       // Immediate local update of teams without waiting for API full refresh
       if (data?.team) {
         setTeams(prevTeams => {
@@ -99,17 +135,9 @@ function App() {
         setTeams(await getTeams());
       }
 
-      // Keep Team Details popup fresh after each sale.
-      if (selectedTeamIdRef.current) {
-        socket.emit("selectTeamForDashboard", { teamId: Number(selectedTeamIdRef.current) });
-      }
     };
 
-    const handlePlayerRelisted = async () => {
-      if (selectedTeamIdRef.current) {
-        socket.emit("selectTeamForDashboard", { teamId: Number(selectedTeamIdRef.current) });
-      }
-    };
+    const handlePlayerRelisted = async () => {};
 
     const handleDatabaseReset = async () => {
       // Refresh teams and players when database is reset
@@ -117,7 +145,7 @@ function App() {
       setPlayers(await getPlayers());
       setCurrentAuction({ player: null, currentBid: 0 });
       setAuctionError(null);
-      setSelectedTeamDetails(null);
+      handleCloseTeamDetails();
     };
 
     const handleAuctionError = (data) => {
@@ -147,6 +175,33 @@ function App() {
         return;
       }
 
+      if (shouldGateTeamDetailsOpen) {
+        const isAlreadyOpen = !!selectedTeamDetailsRef.current;
+        if (!isAlreadyOpen) {
+          const incomingRequestId = data.requestId ?? null;
+          const pendingRequestId = pendingTeamDetailsRequestIdRef.current;
+          const pendingTeamId = Number(pendingTeamDetailsTeamIdRef.current || 0);
+          const incomingTeamId = Number(data.team_id || 0);
+
+          const isValidRequestedOpen = incomingRequestId
+            ? incomingRequestId === pendingRequestId
+            // Legacy backend compatibility (no requestId): allow only for the team
+            // that was explicitly requested most recently.
+            : Boolean(pendingRequestId) && pendingTeamId > 0 && incomingTeamId === pendingTeamId;
+
+          if (!isValidRequestedOpen) {
+            return;
+          }
+        }
+
+        pendingTeamDetailsRequestIdRef.current = null;
+        pendingTeamDetailsTeamIdRef.current = null;
+      }
+
+      if (!data.team_name && !data.team_id) {
+        return;
+      }
+
       let resolvedTeamId = data.team_id ?? null;
       if (!resolvedTeamId && data.team_name) {
         const match = teamsRef.current.find(
@@ -172,6 +227,7 @@ function App() {
 
     const handleHideTeamsOverlay = () => {
       setShowTeamsOverlay(false);
+      setRequestedFullscreenTeamId(null);
     };
 
     const handleShowTeamFullscreen = (data) => {
@@ -207,7 +263,7 @@ function App() {
       socket.off("hideTeamsOverlay", handleHideTeamsOverlay);
       socket.off("showTeamFullscreen", handleShowTeamFullscreen);
     };
-  }, [socket]);
+  }, [socket, shouldGateTeamDetailsOpen]);
 
   const handleShowTeamsRequest = (teamId) => {
     const numericTeamId = Number(teamId);
@@ -225,13 +281,13 @@ function App() {
   return (
     <div>
       {isDashboardMode ? (
-        <Dashboard teams={teams} players={players} currentAuction={currentAuction} socket={socket} auctionError={auctionError} selectedTeamDetails={selectedTeamDetails} onCloseTeamDetails={() => setSelectedTeamDetails(null)} showTeamsOverlay={showTeamsOverlay} onCloseTeamsOverlay={() => setShowTeamsOverlay(false)} onShowTeams={() => handleShowTeamsRequest()} onShowTeamFullscreen={handleShowTeamsRequest} requestedFullscreenTeamId={requestedFullscreenTeamId} fullscreenRequestNonce={fullscreenRequestNonce} />
+        <Dashboard teams={teams} players={players} currentAuction={currentAuction} socket={socket} auctionError={auctionError} selectedTeamDetails={selectedTeamDetails} onCloseTeamDetails={handleCloseTeamDetails} showTeamsOverlay={showTeamsOverlay} onCloseTeamsOverlay={() => setShowTeamsOverlay(false)} onShowTeams={() => handleShowTeamsRequest()} onShowTeamFullscreen={handleShowTeamsRequest} requestedFullscreenTeamId={requestedFullscreenTeamId} fullscreenRequestNonce={fullscreenRequestNonce} />
       ) : isAuctioneerMode ? (
-        <AuctioneerPanel teams={teams} players={players} socket={socket} setTeams={setTeams} setPlayers={setPlayers} onShowTeams={handleShowTeamsRequest} />
+        <AuctioneerPanel teams={teams} players={players} socket={socket} setTeams={setTeams} setPlayers={setPlayers} onShowTeams={handleShowTeamsRequest} onShowTeamDetails={handleRequestTeamDetails} />
       ) : (
         <div style={{ display: "flex", flexDirection: "row" }}>
-          <Dashboard teams={teams} players={players} currentAuction={currentAuction} socket={socket} auctionError={auctionError} selectedTeamDetails={selectedTeamDetails} onCloseTeamDetails={() => setSelectedTeamDetails(null)} showTeamsOverlay={showTeamsOverlay} onCloseTeamsOverlay={() => setShowTeamsOverlay(false)} onShowTeams={() => handleShowTeamsRequest()} onShowTeamFullscreen={handleShowTeamsRequest} requestedFullscreenTeamId={requestedFullscreenTeamId} fullscreenRequestNonce={fullscreenRequestNonce} />
-          <AuctioneerPanel teams={teams} players={players} socket={socket} setTeams={setTeams} setPlayers={setPlayers} onShowTeams={handleShowTeamsRequest} />
+          <Dashboard teams={teams} players={players} currentAuction={currentAuction} socket={socket} auctionError={auctionError} selectedTeamDetails={selectedTeamDetails} onCloseTeamDetails={handleCloseTeamDetails} showTeamsOverlay={showTeamsOverlay} onCloseTeamsOverlay={() => setShowTeamsOverlay(false)} onShowTeams={() => handleShowTeamsRequest()} onShowTeamFullscreen={handleShowTeamsRequest} requestedFullscreenTeamId={requestedFullscreenTeamId} fullscreenRequestNonce={fullscreenRequestNonce} />
+          <AuctioneerPanel teams={teams} players={players} socket={socket} setTeams={setTeams} setPlayers={setPlayers} onShowTeams={handleShowTeamsRequest} onShowTeamDetails={handleRequestTeamDetails} />
         </div>
       )}
     </div>

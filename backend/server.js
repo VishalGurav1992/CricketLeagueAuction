@@ -65,8 +65,19 @@ const getCaptainAssignments = (config) => {
   return assignments;
 };
 
+const getOwnerPlayerAssignments = (config) => {
+  const assignments = new Map();
+  config.teams.forEach((team) => {
+    if (team.owner_player_id != null) {
+      assignments.set(Number(team.owner_player_id), Number(team.id));
+    }
+  });
+  return assignments;
+};
+
 const seedDatabaseFromConfig = (config) => {
   const captainAssignments = getCaptainAssignments(config);
+  const ownerPlayerAssignments = getOwnerPlayerAssignments(config);
 
   config.teams.forEach(team => {
     db.run("INSERT OR REPLACE INTO teams (id, name, balance, photo, owner_name, photoowner) VALUES (?, ?, ?, ?, ?, ?)",
@@ -75,12 +86,47 @@ const seedDatabaseFromConfig = (config) => {
 
   config.players.forEach(player => {
     const playerId = Number(player.id);
-    const soldToTeam = captainAssignments.get(playerId) ?? null;
+    const soldToTeam = captainAssignments.get(playerId) ?? ownerPlayerAssignments.get(playerId) ?? null;
     const role = captainAssignments.has(playerId) ? 'Captain' : player.role;
     const auctionCategory = player.auction_category || 'NEW';
     db.run(
       "INSERT OR REPLACE INTO players (id, name, role, base_price, sold_to_team, auction_category, photo, age, mobile_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       [player.id, player.name, role, player.base_price, soldToTeam, auctionCategory, player.photo, player.age ?? null, player.mobile_number ?? null]
+    );
+  });
+};
+
+// Robust sync function to ensure all players from config are in the database
+const syncPlayersFromConfigToDatabase = (config, callback) => {
+  const captainAssignments = getCaptainAssignments(config);
+  const ownerPlayerAssignments = getOwnerPlayerAssignments(config);
+  let completedInserts = 0;
+  const totalPlayers = config.players.length;
+  let hasError = false;
+
+  if (totalPlayers === 0) {
+    return callback(null, { synced: 0 });
+  }
+
+  config.players.forEach(player => {
+    const playerId = Number(player.id);
+    const soldToTeam = captainAssignments.get(playerId) ?? ownerPlayerAssignments.get(playerId) ?? null;
+    const role = captainAssignments.has(playerId) ? 'Captain' : player.role;
+    const auctionCategory = player.auction_category || 'NEW';
+
+    db.run(
+      "INSERT OR REPLACE INTO players (id, name, role, base_price, sold_to_team, auction_category, photo, age, mobile_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [player.id, player.name, role, player.base_price, soldToTeam, auctionCategory, player.photo, player.age ?? null, player.mobile_number ?? null],
+      function(err) {
+        if (err && !hasError) {
+          hasError = true;
+          return callback(err);
+        }
+        completedInserts++;
+        if (completedInserts === totalPlayers) {
+          callback(null, { synced: totalPlayers });
+        }
+      }
     );
   });
 };
@@ -204,7 +250,9 @@ app.get('/teams', (req, res) => {
         name: cfg.name,
         owner_name: cfg.owner_name,
         photo: cfg.photo,
-        photoowner: cfg.photoowner
+        photoowner: cfg.photoowner,
+        captain_player_id: cfg.captain_player_id ?? null,
+        owner_player_id: cfg.owner_player_id ?? null
       };
     });
     res.json(hydrated);
@@ -406,6 +454,7 @@ app.post('/auction/sell', (req, res) => {
 
 app.post('/auction/relist-player', (req, res) => {
   const playerId = Number(req.body?.playerId);
+  const skipTeamBlock = Boolean(req.body?.skipTeamBlock);
   if (!playerId) {
     return res.status(400).json({ error: "Invalid playerId" });
   }
@@ -422,6 +471,11 @@ app.post('/auction/relist-player', (req, res) => {
     }
     if (String(player.role || "").toLowerCase() === "captain") {
       return res.status(400).json({ error: "Captain cannot be relisted" });
+    }
+
+    const ownerPlayerAssignments = getOwnerPlayerAssignments(loadConfig());
+    if (ownerPlayerAssignments.has(Number(playerId))) {
+      return res.status(400).json({ error: "Owner player cannot be relisted" });
     }
 
     const soldTeamId = Number(player.sold_to_team);
@@ -443,9 +497,10 @@ app.post('/auction/relist-player', (req, res) => {
           }
 
           const refundAmount = Number(historyRow?.final_price ?? player.base_price ?? 0);
+          const blockedTeamId = skipTeamBlock ? null : soldTeamId;
 
           db.serialize(() => {
-            db.run("UPDATE players SET sold_to_team = NULL, auction_category = 'RELIST', relist_blocked_team_id = ? WHERE id = ?", [soldTeamId, playerId], function(updatePlayerErr) {
+            db.run("UPDATE players SET sold_to_team = NULL, auction_category = 'RELIST', relist_blocked_team_id = ? WHERE id = ?", [blockedTeamId, playerId], function(updatePlayerErr) {
               if (updatePlayerErr) {
                 return res.status(500).json({ error: updatePlayerErr.message });
               }
@@ -543,6 +598,7 @@ io.on('connection', (socket) => {
 
   socket.on('selectTeamForDashboard', (data) => {
     const teamId = Number(data?.teamId);
+    const requestId = data?.requestId ?? null;
     if (!teamId) return;
 
     fetchTeamDetails(teamId, (err, details) => {
@@ -550,7 +606,7 @@ io.on('connection', (socket) => {
         socket.emit('auctionError', { message: err.message || 'Unable to fetch team details' });
         return;
       }
-      io.emit('teamDetailsSelected', details);
+      io.emit('teamDetailsSelected', { ...details, requestId });
     });
   });
 
@@ -567,6 +623,10 @@ io.on('connection', (socket) => {
   socket.on('hideTeamsOverlay', () => {
     io.emit('hideTeamsOverlay');
   });
+
+  socket.on('teamBalanceWarning', (data) => {
+    io.emit('teamBalanceWarning', data);
+  });
   
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
@@ -577,19 +637,36 @@ io.on('connection', (socket) => {
 app.post('/reset', (req, res) => {
   const config = loadConfig();
 
-  // Clear existing data
-  db.run("DELETE FROM teams");
-  db.run("DELETE FROM players");
-  db.run("DELETE FROM auction_history");
+  // Clear existing data and resync all players from config
+  db.serialize(() => {
+    db.run("DELETE FROM auction_history");
+    db.run("DELETE FROM players");
+    db.run("DELETE FROM teams", () => {
+      // After deletion, resync teams and players from config
+      config.teams.forEach(team => {
+        db.run("INSERT INTO teams (id, name, balance, photo, owner_name, photoowner) VALUES (?, ?, ?, ?, ?, ?)",
+          [team.id, team.name, team.balance, team.photo, team.owner_name ?? null, team.photoowner ?? null]);
+      });
 
-  seedDatabaseFromConfig(config);
+      // Use robust sync function to ensure all players are inserted
+      syncPlayersFromConfigToDatabase(config, (err, result) => {
+        if (err) {
+          console.error("Error syncing players during reset:", err);
+          io.emit('resetError', { message: "Error during database reset", error: err.message });
+          return res.status(500).json({ error: "Failed to reset database", details: err.message });
+        }
 
-  // Reset current auction state
-  currentAuctionPlayer = null;
-  currentBid = 0;
+        // Reset current auction state
+        currentAuctionPlayer = null;
+        currentBid = 0;
 
-  // Broadcast reset event to all connected clients
-  io.emit('databaseReset', { message: "Database has been reset!" });
+        console.log(`Database reset complete. Synced ${result.synced} players from config.json`);
 
-  res.json({ message: "Database reset to original state!" });
+        // Broadcast reset event to all connected clients
+        io.emit('databaseReset', { message: "Database has been reset!", playersSynced: result.synced });
+
+        res.json({ message: "Database reset to original state!", playersSynced: result.synced });
+      });
+    });
+  });
 });

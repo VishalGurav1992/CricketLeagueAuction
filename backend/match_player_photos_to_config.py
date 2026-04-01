@@ -100,13 +100,14 @@ def score_match(player_name: str, file_path: Path):
 
 
 def relative_photo_path(path: Path) -> str:
-    return f"/images/player_photo/{path.name}"
+    relative = path.relative_to(PHOTO_DIR).as_posix()
+    return f"/images/player_photo/{relative}"
 
 
 def main():
     config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     files = [
-        p for p in PHOTO_DIR.iterdir() if p.is_file() and p.suffix.lower() in SUPPORTED
+        p for p in PHOTO_DIR.rglob("*") if p.is_file() and p.suffix.lower() in SUPPORTED
     ]
 
     matched = 0
