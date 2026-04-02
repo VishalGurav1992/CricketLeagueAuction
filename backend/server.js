@@ -498,9 +498,10 @@ app.post('/auction/relist-player', (req, res) => {
 
           const refundAmount = Number(historyRow?.final_price ?? player.base_price ?? 0);
           const blockedTeamId = skipTeamBlock ? null : soldTeamId;
+          const restoredCategory = skipTeamBlock ? 'NEW' : 'RELIST';
 
           db.serialize(() => {
-            db.run("UPDATE players SET sold_to_team = NULL, auction_category = 'RELIST', relist_blocked_team_id = ? WHERE id = ?", [blockedTeamId, playerId], function(updatePlayerErr) {
+            db.run("UPDATE players SET sold_to_team = NULL, auction_category = ?, relist_blocked_team_id = ? WHERE id = ?", [restoredCategory, blockedTeamId, playerId], function(updatePlayerErr) {
               if (updatePlayerErr) {
                 return res.status(500).json({ error: updatePlayerErr.message });
               }
@@ -549,7 +550,7 @@ app.post('/auction/relist-player', (req, res) => {
                       io.emit('refresh');
 
                       res.json({
-                        message: "Player moved back to unsold pool",
+                        message: "Player moved back to auction pool",
                         refundedAmount: refundAmount,
                         updatedTeam,
                         updatedPlayer
@@ -568,17 +569,14 @@ app.post('/auction/relist-player', (req, res) => {
 
 app.post('/auction/undo-unsold', (req, res) => {
   const playerId = Number(req.body?.playerId);
-  const previousCategory = String(req.body?.previousCategory || 'NEW').toUpperCase();
   if (!playerId) return res.status(400).json({ error: 'Invalid playerId' });
-
-  const safeCategory = ['NEW', 'UNSOLD', 'RELIST'].includes(previousCategory) ? previousCategory : 'NEW';
 
   db.get('SELECT * FROM players WHERE id = ?', [playerId], (err, player) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!player) return res.status(404).json({ error: 'Player not found' });
     if (player.sold_to_team) return res.status(400).json({ error: 'Player is already sold to a team' });
 
-    db.run('UPDATE players SET auction_category = ? WHERE id = ?', [safeCategory, playerId], function(updateErr) {
+    db.run("UPDATE players SET auction_category = 'NEW', relist_blocked_team_id = NULL WHERE id = ?", [playerId], function(updateErr) {
       if (updateErr) return res.status(500).json({ error: updateErr.message });
 
       db.get('SELECT * FROM players WHERE id = ?', [playerId], (fetchErr, updatedPlayer) => {
@@ -626,6 +624,16 @@ io.on('connection', (socket) => {
 
   socket.on('teamBalanceWarning', (data) => {
     io.emit('teamBalanceWarning', data);
+  });
+
+  socket.on('startNextPlayerTransition', (data) => {
+    const seconds = Number(data?.seconds) > 0 ? Number(data.seconds) : 3;
+    const stepMs = Number(data?.stepMs) > 0 ? Number(data.stepMs) : 1250;
+    io.emit('startNextPlayerTransition', { seconds, stepMs });
+  });
+
+  socket.on('toggleLogoOverlay', (data) => {
+    io.emit('toggleLogoOverlay', { show: !!data?.show });
   });
   
   socket.on('disconnect', () => {

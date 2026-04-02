@@ -10,6 +10,11 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
   const [message, setMessage] = useState("");
   const [selectionMode, setSelectionMode] = useState("auto");
   const [lastAction, setLastAction] = useState(null); // { type: 'sold'|'unsold', playerId, playerName, teamId?, price?, previousCategory? }
+  const [pendingNextPlayerId, setPendingNextPlayerId] = useState(null);
+  const [awaitingSellConfirmation, setAwaitingSellConfirmation] = useState(false);
+  const [countdownValue, setCountdownValue] = useState(null);
+  const [isAuctionComplete, setIsAuctionComplete] = useState(false);
+  const [showLogo, setShowLogo] = useState(false);
   const [heartbeatEnabled, setHeartbeatEnabled] = useState(false);
   const [leagueAudioEnabled, setLeagueAudioEnabled] = useState(false);
   const heartbeatEnabledRef = useRef(false);
@@ -20,13 +25,36 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
   const heartbeatAudioRef = useRef(null);
   const leagueAudioRef = useRef(null);
   const soldAudioRef = useRef(null);
+  const auctionCompleteAlertShownRef = useRef(false);
+
+  const isExtraPlayer = (player) => {
+    const playerId = Number(player?.id || 0);
+    return playerId >= 83 && playerId <= 90;
+  };
+
+  const getPlayerCategory = (player) => {
+    const category = String(player?.auction_category || "NEW").toUpperCase();
+    if (category === "EXTRA PLAYER" || isExtraPlayer(player)) return "EXTRA PLAYER";
+    if (category === "RELIST") return "RELIST";
+    if (category === "UNSOLD") return "UNSOLD";
+    return "NEW";
+  };
+
+  const splitByAutoSequence = (available) => {
+    const newPlayers = available.filter((p) => getPlayerCategory(p) === "NEW");
+    const extraPlayers = available.filter((p) => getPlayerCategory(p) === "EXTRA PLAYER");
+    const relistPlayers = available.filter((p) => getPlayerCategory(p) === "RELIST");
+    const unsoldPlayers = available.filter((p) => getPlayerCategory(p) === "UNSOLD");
+    return { newPlayers, extraPlayers, relistPlayers, unsoldPlayers };
+  };
 
   const getAuctionCategoryOrder = (player) => {
-    const category = String(player?.auction_category || "NEW").toUpperCase();
+    const category = getPlayerCategory(player);
     if (category === "NEW") return 0;
-    if (category === "RELIST") return 1;
-    if (category === "UNSOLD") return 2;
-    return 3;
+    if (category === "EXTRA PLAYER") return 1;
+    if (category === "RELIST") return 2;
+    if (category === "UNSOLD") return 3;
+    return 4;
   };
 
   const getAvailablePlayers = () => {
@@ -40,26 +68,60 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
   };
 
   const getPlayerAuctionCategory = (player) => {
-    const category = String(player?.auction_category || "NEW").toUpperCase();
+    const category = getPlayerCategory(player);
     if (category === "UNSOLD") return "UNSOLD";
     if (category === "RELIST") return "RELIST PLAYER";
+    if (category === "EXTRA PLAYER") return "EXTRA PLAYER";
     return "NEW TO AUCTION";
   };
 
-  // Pick next player: NEW first, then RELIST, then UNSOLD.
+  // Pick next player: NEW (1-82) first, then EXTRA PLAYER (83-90), then RELIST, then UNSOLD.
   const pickNextPlayer = (excludeId) => {
     const available = getAvailablePlayers().filter(p => p.id != excludeId);
-    const newPlayers = available.filter(p => String(p.auction_category || "NEW").toUpperCase() === "NEW");
-    const relistPlayers = available.filter(p => String(p.auction_category || "NEW").toUpperCase() === "RELIST");
-    const unsoldPlayers = available.filter(p => String(p.auction_category || "NEW").toUpperCase() === "UNSOLD");
+    const { newPlayers, extraPlayers, relistPlayers, unsoldPlayers } = splitByAutoSequence(available);
     const pool = newPlayers.length > 0
       ? newPlayers
-      : (relistPlayers.length > 0 ? relistPlayers : unsoldPlayers);
+      : (extraPlayers.length > 0 ? extraPlayers : (relistPlayers.length > 0 ? relistPlayers : unsoldPlayers));
     return pool.length > 0 ? String(pool[Math.floor(Math.random() * pool.length)].id) : null;
   };
 
+  useEffect(() => {
+    const teamsWithMaxPlayers = teams.filter((team) =>
+      players.filter((player) => Number(player.sold_to_team) === Number(team.id)).length >= TEAM_MAX_PLAYERS
+    ).length;
+    const allTeamsFilled = teams.length > 0 && teamsWithMaxPlayers === teams.length;
+
+    setIsAuctionComplete(allTeamsFilled);
+
+    if (allTeamsFilled && !auctionCompleteAlertShownRef.current) {
+      auctionCompleteAlertShownRef.current = true;
+      setAwaitingSellConfirmation(false);
+      setPendingNextPlayerId(null);
+      setCountdownValue(null);
+      setSelectedPlayer(null);
+      setSelectedTeam(null);
+      setBid(0);
+      setMessage("Auction complete: all teams have 15 players.");
+      window.alert("Auction complete: all teams now have 15 players each.");
+    }
+
+    if (!allTeamsFilled) {
+      auctionCompleteAlertShownRef.current = false;
+    }
+  }, [teams, players]);
+
   // Keep selected player valid for the active mode.
   useEffect(() => {
+    if (awaitingSellConfirmation) {
+      return;
+    }
+
+    if (isAuctionComplete) {
+      setSelectedPlayer(null);
+      setBid(0);
+      return;
+    }
+
     const availablePlayers = getAvailablePlayers();
 
     if (!availablePlayers.length) {
@@ -77,21 +139,39 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
     }
 
     if (!currentStillAvailable) {
-      const newPlayers = availablePlayers.filter(p => String(p.auction_category || "NEW").toUpperCase() === "NEW");
-      const relistPlayers = availablePlayers.filter(p => String(p.auction_category || "NEW").toUpperCase() === "RELIST");
-      const unsoldPlayers = availablePlayers.filter(p => String(p.auction_category || "NEW").toUpperCase() === "UNSOLD");
+      const { newPlayers, extraPlayers, relistPlayers, unsoldPlayers } = splitByAutoSequence(availablePlayers);
       const pool = newPlayers.length > 0
         ? newPlayers
-        : (relistPlayers.length > 0 ? relistPlayers : unsoldPlayers);
-      setSelectedPlayer(String(pool[Math.floor(Math.random() * pool.length)].id));
+        : (extraPlayers.length > 0 ? extraPlayers : (relistPlayers.length > 0 ? relistPlayers : unsoldPlayers));
+      if (pool.length > 0) {
+        setSelectedPlayer(String(pool[Math.floor(Math.random() * pool.length)].id));
+      } else {
+        setSelectedPlayer(null);
+      }
     }
-  }, [players, selectedPlayer, selectionMode]);
+  }, [players, selectedPlayer, selectionMode, awaitingSellConfirmation, isAuctionComplete]);
 
   // Reset heartbeat and click count when player changes
   useEffect(() => {
     stopHeartbeat();
     bidClickCountRef.current = 0;
   }, [selectedPlayer]);
+
+  // Keep auctioneer selection in sync with the dashboard-selected player.
+  useEffect(() => {
+    if (!socket) return;
+
+    const handlePlayerSelectedSync = (data) => {
+      const playerId = data?.player?.id;
+      if (playerId == null) return;
+      setSelectedPlayer(String(playerId));
+    };
+
+    socket.on("playerSelected", handlePlayerSelectedSync);
+    return () => {
+      socket.off("playerSelected", handlePlayerSelectedSync);
+    };
+  }, [socket]);
 
   // Auto-update bid amount when player is selected
   useEffect(() => {
@@ -145,6 +225,10 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
   };
 
   const handleSell = async () => {
+    if (isAuctionComplete) {
+      setMessage("Auction already complete.");
+      return;
+    }
     if (!selectedPlayer || !selectedTeam || bid <= 0) return;
     const balanceWarning = getSellBalanceWarning(selectedTeam, bid);
     if (balanceWarning && socket) {
@@ -184,19 +268,55 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
       }
       const soldPlayerName = players.find(p => p.id == playerIdToSell)?.name || `Player #${playerIdToSell}`;
       setLastAction({ type: 'sold', playerId: playerIdToSell, playerName: soldPlayerName, teamId: teamIdToSell, price: finalBid });
-      setSelectedPlayer(nextPlayerId);
+      setPendingNextPlayerId(nextPlayerId);
+      setAwaitingSellConfirmation(true);
       setSelectedTeam(null);
-      if (!nextPlayerId) {
-        setBid(0);
-      }
-      setMessage("Player sold! Updates coming in real-time...");
+      setMessage("Player sold! Confirm in Auctioneer Panel to continue.");
       setTimeout(() => setMessage(""), 3000);
     } catch (error) {
       setMessage("Error selling player");
     }
   };
 
+  const handleConfirmNextPlayer = () => {
+    if (isAuctionComplete) {
+      setMessage("Auction already complete.");
+      return;
+    }
+    if (!awaitingSellConfirmation) return;
+
+    if (socket) {
+      socket.emit("startNextPlayerTransition", { seconds: 3, stepMs: 1250 });
+    }
+
+    setCountdownValue(3);
+    setMessage("");
+
+    let remaining = 3;
+    const intervalId = setInterval(() => {
+      remaining -= 1;
+      if (remaining > 0) {
+        setCountdownValue(remaining);
+        return;
+      }
+
+      clearInterval(intervalId);
+      setCountdownValue(null);
+      setAwaitingSellConfirmation(false);
+      const resolvedNextPlayerId = pendingNextPlayerId || (selectionMode === "auto" ? pickNextPlayer(selectedPlayer) : null);
+      setSelectedPlayer(resolvedNextPlayerId);
+      setPendingNextPlayerId(null);
+      if (!resolvedNextPlayerId) {
+        setBid(0);
+      }
+    }, 1250);
+  };
+
   const handleUnsold = async () => {
+    if (isAuctionComplete) {
+      setMessage("Auction already complete.");
+      return;
+    }
     if (!selectedPlayer) return;
     const confirmed = window.confirm("Are you sure you want to mark this player as unsold?");
     if (!confirmed) return;
@@ -222,11 +342,11 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
       setLastAction({ type: 'unsold', playerId: selectedPlayer, playerName: unsoldPlayerName, previousCategory: prevCat });
 
       const nextPlayerId = selectionMode === "auto" ? pickNextPlayer(selectedPlayer) : null;
-      setSelectedPlayer(nextPlayerId);
+      setPendingNextPlayerId(nextPlayerId);
+      setAwaitingSellConfirmation(true);
       setSelectedTeam(null);
-      if (!nextPlayerId) setBid(0);
 
-      setMessage("Player moved to unsold pool.");
+      setMessage("Player moved to unsold pool. Confirm in Auctioneer Panel to continue.");
       setTimeout(() => setMessage(""), 3000);
     } catch (error) {
       setMessage("Error moving player to unsold pool");
@@ -253,6 +373,23 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
         if (response.updatedPlayer) {
           setPlayers(prevPlayers => prevPlayers.map(p => p.id == response.updatedPlayer.id ? response.updatedPlayer : p));
         }
+
+        const restoredPlayerId = String(lastAction.playerId);
+        const restoredBid = Number(lastAction.price || 0);
+
+        // Cancel any pending next-player transition and restore this player as active auction.
+        setAwaitingSellConfirmation(false);
+        setPendingNextPlayerId(null);
+        setCountdownValue(null);
+        setSelectedTeam(null);
+        setSelectedPlayer(restoredPlayerId);
+        setBid(restoredBid);
+
+        await selectPlayerForAuction(restoredPlayerId);
+        if (restoredBid > 0) {
+          await updateBid(restoredBid);
+        }
+
         setMessage(`Undo: ${lastAction.playerName} returned to auction pool.`);
       } else if (lastAction.type === 'unsold') {
         const response = await undoUnsold(lastAction.playerId, lastAction.previousCategory);
@@ -443,6 +580,32 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
         <h2 style={{ margin: 0 }}>Auctioneer Panel</h2>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#222", borderRadius: 20, padding: "6px 14px", boxShadow: "0 2px 8px rgba(0,0,0,0.18)" }}>
+            <span style={{ color: "#f1e9cc", fontSize: 13, fontWeight: "bold", letterSpacing: 0.5 }}>🖼️ Show Logo</span>
+            <div
+              onClick={() => {
+                const next = !showLogo;
+                setShowLogo(next);
+                if (socket) socket.emit("toggleLogoOverlay", { show: next });
+              }}
+              style={{
+                width: 44, height: 24, borderRadius: 12, cursor: "pointer", position: "relative",
+                background: showLogo ? "#7b2ff7" : "#555",
+                transition: "background 0.25s",
+                boxShadow: showLogo ? "0 0 8px rgba(123,47,247,0.7)" : "none"
+              }}
+            >
+              <div style={{
+                position: "absolute", top: 3, left: showLogo ? 23 : 3,
+                width: 18, height: 18, borderRadius: "50%", background: "#fff",
+                transition: "left 0.25s", boxShadow: "0 1px 4px rgba(0,0,0,0.3)"
+              }} />
+            </div>
+            <span style={{ color: showLogo ? "#a97dff" : "#888", fontSize: 12, fontWeight: "bold", minWidth: 24 }}>
+              {showLogo ? "ON" : "OFF"}
+            </span>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#222", borderRadius: 20, padding: "6px 14px", boxShadow: "0 2px 8px rgba(0,0,0,0.18)" }}>
             <span style={{ color: "#f1e9cc", fontSize: 13, fontWeight: "bold", letterSpacing: 0.5 }}>❤️ Heartbeat</span>
             <div
               onClick={toggleHeartbeat}
@@ -494,6 +657,7 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
         <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
           <button
             onClick={() => setSelectionMode("auto")}
+            disabled={isAuctionComplete}
             style={{
               flex: 1,
               padding: "8px 10px",
@@ -508,6 +672,7 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
           </button>
           <button
             onClick={() => setSelectionMode("manual")}
+            disabled={isAuctionComplete}
             style={{
               flex: 1,
               padding: "8px 10px",
@@ -528,6 +693,7 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
             <select
               onChange={e => setSelectedPlayer(e.target.value || null)}
               value={selectedPlayer || ""}
+              disabled={isAuctionComplete}
               style={{ width: "100%", padding: "8px" }}
             >
               <option value="">Select Player</option>
@@ -565,6 +731,7 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
         <select 
           onChange={e => setSelectedTeam(e.target.value)} 
           value={selectedTeam || ""}
+          disabled={isAuctionComplete}
           style={{ width: "100%", padding: "8px", marginBottom: 10 }}
         >
           <option value="">Select Team</option>
@@ -588,60 +755,55 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
           placeholder="Bid Amount" 
           onChange={e => setBid(Number(e.target.value))} 
           value={bid || ""} 
+          disabled={isAuctionComplete}
           style={{ width: "100%", padding: "8px", marginBottom: 10 }}
         />
         
         <div style={{ display: "flex", gap: "10px", marginBottom: 10 }}>
           <button 
             onClick={() => incrementBid(1000)} 
-            style={{ flex: 1, padding: "10px", background: "#007bff", color: "white", border: "none", borderRadius: "4px" }}
+            disabled={isAuctionComplete}
+            style={{ flex: 1, padding: "10px", background: "#28a745", color: "white", border: "none", borderRadius: "4px" }}
           >
             +₹1000
           </button>
           <button 
             onClick={() => incrementBid(2000)} 
-            style={{ flex: 1, padding: "10px", background: "#28a745", color: "white", border: "none", borderRadius: "4px" }}
+            disabled={isAuctionComplete}
+            style={{ flex: 1, padding: "10px", background: "#007bff", color: "white", border: "none", borderRadius: "4px" }}
           >
             +₹2000
           </button>
           <button 
             onClick={() => incrementBid(5000)} 
-            style={{ flex: 1, padding: "10px", background: "#ffc107", color: "black", border: "none", borderRadius: "4px" }}
+            disabled={isAuctionComplete}
+            style={{ flex: 1, padding: "10px", background: "#dc3545", color: "white", border: "none", borderRadius: "4px" }}
           >
             +₹5000
-          </button>
-          <button
-            onClick={() => incrementBid(10000)}
-            style={{ flex: 1, padding: "10px", background: "#20c997", color: "white", border: "none", borderRadius: "4px" }}
-          >
-            +₹10000
           </button>
         </div>
 
         <div style={{ display: "flex", gap: "10px", marginBottom: 10 }}>
           <button 
             onClick={() => decrementBid(1000)} 
+            disabled={isAuctionComplete}
             style={{ flex: 1, padding: "10px", background: "#6c757d", color: "white", border: "none", borderRadius: "4px" }}
           >
             -₹1000
           </button>
           <button 
             onClick={() => decrementBid(2000)} 
+            disabled={isAuctionComplete}
             style={{ flex: 1, padding: "10px", background: "#495057", color: "white", border: "none", borderRadius: "4px" }}
           >
             -₹2000
           </button>
           <button 
             onClick={() => decrementBid(5000)} 
+            disabled={isAuctionComplete}
             style={{ flex: 1, padding: "10px", background: "#343a40", color: "white", border: "none", borderRadius: "4px" }}
           >
             -₹5000
-          </button>
-          <button
-            onClick={() => decrementBid(10000)}
-            style={{ flex: 1, padding: "10px", background: "#212529", color: "white", border: "none", borderRadius: "4px" }}
-          >
-            -₹10000
           </button>
         </div>
       </div>
@@ -649,11 +811,11 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
       <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
         <button
           onClick={handleSell}
-          disabled={!selectedPlayer}
+          disabled={!selectedPlayer || awaitingSellConfirmation || isAuctionComplete}
           style={{
             flex: 1,
             padding: "15px",
-            background: selectedPlayer ? "#dc3545" : "#9aa0a6",
+            background: selectedPlayer && !awaitingSellConfirmation ? "#dc3545" : "#9aa0a6",
             color: "white",
             border: "none",
             borderRadius: "4px",
@@ -665,11 +827,11 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
         </button>
         <button
           onClick={handleUnsold}
-          disabled={!selectedPlayer}
+          disabled={!selectedPlayer || awaitingSellConfirmation || isAuctionComplete}
           style={{
             flex: 1,
             padding: "15px",
-            background: selectedPlayer ? "#fd7e14" : "#9aa0a6",
+            background: selectedPlayer && !awaitingSellConfirmation ? "#fd7e14" : "#9aa0a6",
             color: "white",
             border: "none",
             borderRadius: "4px",
@@ -680,6 +842,30 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
           UNSOLD
         </button>
       </div>
+
+      {awaitingSellConfirmation && (
+        <div style={{ marginBottom: 16 }}>
+          <button
+            onClick={handleConfirmNextPlayer}
+            disabled={countdownValue !== null || isAuctionComplete}
+            style={{
+              width: "100%",
+              padding: "12px",
+              background: countdownValue !== null ? "#9aa0a6" : "#0d6efd",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              fontSize: "14px",
+              fontWeight: "bold",
+              cursor: countdownValue !== null ? "not-allowed" : "pointer"
+            }}
+          >
+            {countdownValue !== null
+              ? `Starting next player in ${countdownValue}...`
+              : "CONFIRM NEXT PLAYER"}
+          </button>
+        </div>
+      )}
 
       <div style={{ marginBottom: 16 }}>
         <button

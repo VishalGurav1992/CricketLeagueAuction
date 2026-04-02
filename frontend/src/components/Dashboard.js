@@ -4,9 +4,12 @@ import { relistPlayer } from "../api";
 export default function Dashboard({ teams, players, currentAuction, socket, auctionError, selectedTeamDetails, onCloseTeamDetails, showTeamsOverlay, onCloseTeamsOverlay, onShowTeams, onShowTeamFullscreen, requestedFullscreenTeamId, fullscreenRequestNonce }) {
   const [showCongratsPopup, setShowCongratsPopup] = useState(false);
   const [soldPlayerInfo, setSoldPlayerInfo] = useState(null);
+  const [showLogoOverlay, setShowLogoOverlay] = useState(false);
+  const [transitionCountdown, setTransitionCountdown] = useState(null);
   const [soundConfig, setSoundConfig] = useState(null);
-  const [isBackgroundEnabled, setIsBackgroundEnabled] = useState(true);
   const [displayedAuction, setDisplayedAuction] = useState(null);
+  const [showTeamPanel, setShowTeamPanel] = useState(true);
+  const [allowAuctionCardReveal, setAllowAuctionCardReveal] = useState(true);
   const [showAuctionCard, setShowAuctionCard] = useState(false);
   const [auctionCardAnimSeed, setAuctionCardAnimSeed] = useState(0);
   const [revealedTeamsCount, setRevealedTeamsCount] = useState(0);
@@ -25,6 +28,9 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
   });
   const audioRef = useRef(null);
   const hideAuctionTimerRef = useRef(null);
+  const transitionCountdownIntervalRef = useRef(null);
+  const teamPanelRevealTimeoutRef = useRef(null);
+  const auctionCardRevealTimeoutRef = useRef(null);
   const activeAuctionPlayerIdRef = useRef(null);
   const titleRef = useRef(null);
   const previousShowTeamsOverlayRef = useRef(false);
@@ -61,23 +67,85 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
           finalPrice
         });
         setShowCongratsPopup(true);
+      }
+    };
 
+    const handleStartNextPlayerTransition = (data) => {
+      const seconds = Number(data?.seconds) > 0 ? Number(data.seconds) : 3;
+      const stepMs = Number(data?.stepMs) > 0 ? Number(data.stepMs) : 1250;
 
-        // Auto-hide popup after configured duration
-        const duration = soundConfig?.animations?.celebrationDuration || 5000;
-        setTimeout(() => {
-          setShowCongratsPopup(false);
-          setSoldPlayerInfo(null);
-        }, duration);
+      setShowCongratsPopup(false);
+      setSoldPlayerInfo(null);
+      setShowTeamPanel(false);
+      setAllowAuctionCardReveal(false);
+      setShowAuctionCard(false);
+
+      if (transitionCountdownIntervalRef.current) {
+        clearInterval(transitionCountdownIntervalRef.current);
+        transitionCountdownIntervalRef.current = null;
+      }
+      if (teamPanelRevealTimeoutRef.current) {
+        clearTimeout(teamPanelRevealTimeoutRef.current);
+        teamPanelRevealTimeoutRef.current = null;
+      }
+      if (auctionCardRevealTimeoutRef.current) {
+        clearTimeout(auctionCardRevealTimeoutRef.current);
+        auctionCardRevealTimeoutRef.current = null;
+      }
+
+      setTransitionCountdown(seconds);
+
+      let remaining = seconds;
+      transitionCountdownIntervalRef.current = setInterval(() => {
+        remaining -= 1;
+        if (remaining > 0) {
+          setTransitionCountdown(remaining);
+          return;
+        }
+
+        clearInterval(transitionCountdownIntervalRef.current);
+        transitionCountdownIntervalRef.current = null;
+        setTransitionCountdown(null);
+
+        setShowTeamPanel(true);
+        auctionCardRevealTimeoutRef.current = setTimeout(() => {
+          setAllowAuctionCardReveal(true);
+          auctionCardRevealTimeoutRef.current = null;
+        }, 1000);
+      }, stepMs);
+    };
+
+    const handlePlayerRelistedStateRestore = () => {
+      setShowCongratsPopup(false);
+      setSoldPlayerInfo(null);
+      setTransitionCountdown(null);
+      setShowTeamPanel(true);
+      setAllowAuctionCardReveal(true);
+
+      if (transitionCountdownIntervalRef.current) {
+        clearInterval(transitionCountdownIntervalRef.current);
+        transitionCountdownIntervalRef.current = null;
+      }
+      if (teamPanelRevealTimeoutRef.current) {
+        clearTimeout(teamPanelRevealTimeoutRef.current);
+        teamPanelRevealTimeoutRef.current = null;
+      }
+      if (auctionCardRevealTimeoutRef.current) {
+        clearTimeout(auctionCardRevealTimeoutRef.current);
+        auctionCardRevealTimeoutRef.current = null;
       }
     };
 
     socket.on("playerSold", handlePlayerSoldPopup);
+    socket.on("startNextPlayerTransition", handleStartNextPlayerTransition);
+    socket.on("playerRelisted", handlePlayerRelistedStateRestore);
 
     return () => {
       socket.off("playerSold", handlePlayerSoldPopup);
+      socket.off("startNextPlayerTransition", handleStartNextPlayerTransition);
+      socket.off("playerRelisted", handlePlayerRelistedStateRestore);
     };
-  }, [socket, players, teams, soundConfig]);
+  }, [socket, players, teams]);
 
   useEffect(() => {
     if (!socket) return;
@@ -87,10 +155,16 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
       window.alert(message);
     };
 
+    const handleToggleLogoOverlay = (data) => {
+      setShowLogoOverlay(!!data?.show);
+    };
+
     socket.on("teamBalanceWarning", handleTeamBalanceWarning);
+    socket.on("toggleLogoOverlay", handleToggleLogoOverlay);
 
     return () => {
       socket.off("teamBalanceWarning", handleTeamBalanceWarning);
+      socket.off("toggleLogoOverlay", handleToggleLogoOverlay);
     };
   }, [socket]);
 
@@ -112,7 +186,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
         setAuctionCardAnimSeed(prev => prev + 1);
       }
 
-      setShowAuctionCard(true);
+      setShowAuctionCard(allowAuctionCardReveal);
       return;
     }
 
@@ -121,7 +195,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
     hideAuctionTimerRef.current = setTimeout(() => {
       setDisplayedAuction(null);
     }, 320);
-  }, [currentAuction]);
+  }, [currentAuction, allowAuctionCardReveal]);
 
   useEffect(() => {
     return () => {
@@ -133,6 +207,15 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
       }
       if (animationTimeoutRef.current) {
         clearTimeout(animationTimeoutRef.current);
+      }
+      if (transitionCountdownIntervalRef.current) {
+        clearInterval(transitionCountdownIntervalRef.current);
+      }
+      if (teamPanelRevealTimeoutRef.current) {
+        clearTimeout(teamPanelRevealTimeoutRef.current);
+      }
+      if (auctionCardRevealTimeoutRef.current) {
+        clearTimeout(auctionCardRevealTimeoutRef.current);
       }
     };
   }, []);
@@ -195,7 +278,14 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
     setIsFullscreenAnimating(true);
   }, [requestedFullscreenTeamId, fullscreenRequestNonce, teams]);
 
+  const selectedTeamConfig = teams.find(
+    (team) => Number(team.id) === Number(selectedTeamDetails?.team_id)
+  ) || teams.find(
+    (team) => String(team.name || "").toLowerCase() === String(selectedTeamDetails?.team_name || "").toLowerCase()
+  );
   const teamDetailPlayers = selectedTeamDetails?.players || [];
+  const captainPlayerId = Number(selectedTeamConfig?.captain_player_id);
+  const ownerPlayerId = Number(selectedTeamConfig?.owner_player_id);
   const ownerPlayerIdSet = new Set(
     teams
       .map((team) => Number(team.owner_player_id))
@@ -226,9 +316,22 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
 
     return highest?.id ?? null;
   })();
+  const prioritizedTeamDetailPlayers = [...teamDetailPlayers].sort((left, right) => {
+    const getPriority = (player) => {
+      const playerId = Number(player?.id);
+      if (playerId > 0 && playerId === captainPlayerId) return 0;
+      if (playerId > 0 && playerId === ownerPlayerId) return 1;
+      return 2;
+    };
+
+    const priorityDiff = getPriority(left) - getPriority(right);
+    if (priorityDiff !== 0) return priorityDiff;
+    return Number(left?.id || 0) - Number(right?.id || 0);
+  });
   const TEAM_MAX_PLAYERS = 15;
+  const allTeamsFilled = teams.length > 0 && teams.every((team) => getTeamPlayerCount(team.id) >= TEAM_MAX_PLAYERS);
   const teamDetailRows = [
-    ...teamDetailPlayers,
+    ...prioritizedTeamDetailPlayers,
     ...Array(Math.max(0, TEAM_MAX_PLAYERS - teamDetailPlayers.length)).fill(null)
   ];
   // Always size for 15 rows since we always show 15
@@ -243,8 +346,6 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
   const headerMinHeight = isProjectorLayout ? 40 : 52;
   const titleFontSize = isProjectorLayout ? "clamp(24px, 3.4vw, 42px)" : "clamp(33px, 4.8vw, 57px)";
   const titleLetterSpacing = isProjectorLayout ? "0.5px" : "1px";
-  const togglePadding = isProjectorLayout ? "6px 10px" : "8px 12px";
-  const toggleFontSize = isProjectorLayout ? "11px" : "12px";
   const tableHeaderFontSize = isProjectorLayout ? "clamp(14px, 1.25vw, 18px)" : "clamp(16px, 1.5vw, 21px)";
   const tableBodyFontSize = isProjectorLayout ? "clamp(15px, 1.3vw, 19px)" : "clamp(17px, 1.6vw, 23px)";
   const tableCellPadding = isProjectorLayout ? "5px" : "6px";
@@ -277,9 +378,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
   const overlayTeamCount = Math.max(1, Math.min(revealedTeamsCount, teams.length));
   const overlayColumns = Math.max(1, Math.ceil(Math.sqrt(overlayTeamCount)));
   const overlayRows = Math.max(1, Math.ceil(overlayTeamCount / overlayColumns));
-  const selectedTeamLogo = teams.find(
-    (t) => String(t.name || "").toLowerCase() === String(selectedTeamDetails?.team_name || "").toLowerCase()
-  )?.photo;
+  const selectedTeamLogo = selectedTeamConfig?.photo;
 
   const getTeamDetailsPdfFileName = () => {
     const teamName = (selectedTeamDetails?.team_name || "team-details")
@@ -450,10 +549,8 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
         overflow: "hidden",
         padding: rootPadding,
         boxSizing: "border-box",
-        backgroundColor: isBackgroundEnabled ? "#f8f9fa" : "#f5ecd3",
-        backgroundImage: isBackgroundEnabled
-          ? "url('/pictures/background.JPG')"
-          : "linear-gradient(180deg, rgba(246,236,205,0.95) 0%, rgba(224,205,150,0.9) 100%)",
+        backgroundColor: "#f5ecd3",
+        backgroundImage: "url('/pictures/background_1.jpeg')",
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",
@@ -465,7 +562,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
       <div style={{ position: "relative", minHeight: headerMinHeight, display: "flex", alignItems: "flex-end", justifyContent: "center", marginBottom: isProjectorLayout ? 0 : 2 }}>
         <h1 ref={titleRef} className="dashboard-title" style={{
           textAlign: "center",
-          color: isBackgroundEnabled ? "#ffffff" : "#233563",
+          color: "#ffffff",
           margin: 0,
           fontSize: titleFontSize,
           lineHeight: 1.05,
@@ -476,9 +573,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
           alignItems: "center",
           justifyContent: "center",
           gap: isProjectorLayout ? 8 : 10,
-          textShadow: isBackgroundEnabled
-            ? "0 1px 0 #d8be7a, 0 2px 0 #bba062, 0 3px 0 #8d7646, 0 10px 18px rgba(0,0,0,0.55)"
-            : "0 1px 0 rgba(255,255,255,0.65), 0 6px 14px rgba(35,53,99,0.22)"
+          textShadow: "0 1px 0 rgba(255,255,255,0.65), 0 6px 14px rgba(35,53,99,0.22)"
         }}>
           <img
             src={toAbsolutePhotoUrl("/images/spl_logo.png")}
@@ -492,24 +587,6 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
           />
           Siddar Premier League Auction 2026
         </h1>
-        <div style={{ position: "absolute", right: 0, top: 0, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "80%", alignItems: "center" }}>
-          <button
-            onClick={() => setIsBackgroundEnabled(prev => !prev)}
-            style={{
-              border: "none",
-              borderRadius: "999px",
-              padding: togglePadding,
-              fontSize: toggleFontSize,
-              fontWeight: "bold",
-              cursor: "pointer",
-              background: isBackgroundEnabled ? "#198754" : "#6c757d",
-              color: "white",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
-            }}
-          >
-            {isBackgroundEnabled ? "Background: ON" : "Background: OFF"}
-          </button>
-        </div>
       </div>
 
       {auctionError && (
@@ -530,7 +607,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
 
       <div className="dashboard-content" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         {/* Teams Cards - 3 columns x 2 rows */}
-        <div style={{ flex: "0 0 40%", minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: teamPanelGap, paddingBottom: teamPanelGap }}>
+        <div style={{ flex: "0 0 40%", minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: teamPanelGap, paddingBottom: teamPanelGap, opacity: showTeamPanel ? 1 : 0, transition: "opacity 1000ms ease" }}>
           <div style={{
             flex: 1,
             minHeight: 0,
@@ -686,8 +763,8 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                   width: titleWidth ? `${Math.round(titleWidth)}px` : "100%",
                   transform: showAuctionCard ? "translateX(-50%) translateY(0) scale(1)" : "translateX(-50%) translateY(28px) scale(0.98)",
                   opacity: showAuctionCard ? 1 : 0,
-                  transition: "transform 300ms ease, opacity 300ms ease",
-                  animation: showAuctionCard ? "auctionCardIn 420ms cubic-bezier(0.16, 1, 0.3, 1)" : "none",
+                  transition: "transform 1000ms ease, opacity 1000ms ease",
+                  animation: showAuctionCard ? "auctionCardIn 1000ms cubic-bezier(0.16, 1, 0.3, 1)" : "none",
                   zIndex: 20,
                   pointerEvents: "none",
                   boxShadow: "0 18px 48px rgba(0,0,0,0.52)",
@@ -752,7 +829,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                       }}>
                         <div style={{ minWidth: 0, flex: 1, textAlign: "center" }}>
                           <div style={{ color: "#ffffff", fontSize: auctionNameFont, lineHeight: 1.05, fontWeight: "bold", whiteSpace: "normal", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {displayedAuctionPlayer.name}
+                            #{displayedAuctionPlayer.id} - {displayedAuctionPlayer.name}
                           </div>
                         </div>
                       </div>
@@ -771,7 +848,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
                           <div style={{ fontSize: auctionBidFont, color: "#f1e9cc", lineHeight: 1, fontWeight: "bold" }}>
                             {(displayedAuction.currentBid || 0).toLocaleString("en-IN")}
                           </div>
-                          <div style={{ fontSize: auctionMetricFont, color: "#f1e9cc", fontWeight: "600", lineHeight: 1 }}>coins</div>
+                          <div style={{ fontSize: auctionMetricFont, color: "#f1e9cc", fontWeight: "600", lineHeight: 1 }}>points</div>
                         </div>
                       </div>
                       <div style={{
@@ -1438,7 +1515,11 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: "rgba(0, 0, 0, 0.8)",
+          backgroundColor: "#f5ecd3",
+          backgroundImage: "url('/pictures/background_1.jpeg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
@@ -1511,22 +1592,30 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
             borderRadius: "20px",
             padding: "40px",
             textAlign: "center",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-            maxWidth: "500px",
-            width: "90%",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
+            width: "75vw",
+            height: "75vh",
+            maxWidth: "75vw",
+            maxHeight: "75vh",
             position: "relative",
             transform: "scale(1)",
             opacity: 1,
             transition: "all 0.3s ease",
-            zIndex: 1001
+            zIndex: 1001,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            alignItems: "center",
+            overflow: "hidden",
+            gap: "12px"
           }}>
             {/* Fireworks/confetti effect */}
             <div style={{
               position: "absolute",
-              top: "-20px",
+              top: "-14px",
               left: "50%",
               transform: "translateX(-50%)",
-              fontSize: "40px",
+              fontSize: "32px",
               animation: "fireworkBounce 1s infinite"
             }}>
               🎉
@@ -1534,34 +1623,34 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
 
             <h1 style={{
               color: "white",
-              fontSize: "36px",
-              margin: "20px 0",
+              fontSize: "clamp(28px, 3.6vw, 46px)",
+              margin: "8px 0 4px",
               textShadow: "2px 2px 4px rgba(0,0,0,0.3)"
             }}>
               PLAYER SOLD!
             </h1>
 
-            <div style={{ margin: "30px 0" }}>
+            <div style={{ margin: "8px 0" }}>
               <img
                 src={toAbsolutePhotoUrl(soldPlayerInfo.player.photo)}
                 alt={soldPlayerInfo.player.name}
                 style={{
-                  width: "120px",
-                  height: "120px",
+                  width: "clamp(120px, 13vw, 180px)",
+                  height: "clamp(120px, 13vw, 180px)",
                   borderRadius: "50%",
-                  border: "4px solid white",
-                  boxShadow: "0 4px 15px rgba(0,0,0,0.2)"
+                  border: "5px solid white",
+                  boxShadow: "0 8px 20px rgba(0,0,0,0.22)"
                 }}
               />
             </div>
 
             <h2 style={{
               color: "white",
-              fontSize: "28px",
-              margin: "15px 0",
+              fontSize: "clamp(24px, 3vw, 38px)",
+              margin: "4px 0",
               textShadow: "1px 1px 2px rgba(0,0,0,0.3)"
             }}>
-              {soldPlayerInfo.player.name}
+              #{soldPlayerInfo.player.id} - {soldPlayerInfo.player.name}
             </h2>
 
             <div style={{
@@ -1569,17 +1658,18 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
               borderRadius: "25px",
               padding: "10px 20px",
               display: "inline-block",
-              margin: "10px 0",
+              margin: "2px 0",
               fontWeight: "bold",
-              color: "white"
+              color: "white",
+              fontSize: "clamp(16px, 1.5vw, 22px)"
             }}>
               {soldPlayerInfo.player.role}
             </div>
 
             <h3 style={{
               color: "#FFD700",
-              fontSize: "32px",
-              margin: "20px 0",
+              fontSize: "clamp(28px, 3.8vw, 48px)",
+              margin: "6px 0",
               textShadow: "2px 2px 4px rgba(0,0,0,0.5)"
             }}>
               ₹{soldPlayerInfo.finalPrice.toLocaleString()}
@@ -1588,13 +1678,15 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
             <div style={{
               background: "rgba(255,255,255,0.9)",
               borderRadius: "15px",
-              padding: "15px",
-              margin: "20px 0"
+              padding: "14px 20px",
+              margin: "8px 0",
+              maxWidth: "78%"
             }}>
               <h3 style={{
                 color: "#333",
                 margin: "0",
-                fontSize: "24px"
+                fontSize: "clamp(20px, 2.2vw, 30px)",
+                lineHeight: 1.2
               }}>
                 🎉 Congratulations {soldPlayerInfo.team.name}! 🎉
               </h3>
@@ -1602,10 +1694,10 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
 
             <div style={{
               position: "absolute",
-              bottom: "-15px",
+              bottom: "-10px",
               left: "50%",
               transform: "translateX(-50%)",
-              fontSize: "30px",
+              fontSize: "24px",
               animation: "trophyBounce 1s infinite 0.5s"
             }}>
               🏆
@@ -1614,6 +1706,96 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
 
           {/* Hidden audio element */}
           <audio ref={audioRef} preload="auto" />
+        </div>
+      )}
+
+      {transitionCountdown !== null && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "#f5ecd3",
+          backgroundImage: "url('/pictures/background_1.jpeg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 1100,
+          color: "#fff",
+          fontSize: "clamp(90px, 16vw, 180px)",
+          fontWeight: 800,
+          textShadow: "0 8px 30px rgba(0,0,0,0.6)"
+        }}>
+          {transitionCountdown}
+        </div>
+      )}
+
+      {showLogoOverlay && (
+        <div style={{
+          position: "fixed",
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundImage: "url('/pictures/background_1.jpeg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 1150
+        }}>
+          <img
+            src="/pictures/spl_logo.png"
+            alt="SPL Logo"
+            style={{
+              width: "70vw",
+              height: "70vh",
+              objectFit: "contain",
+              display: "block"
+            }}
+          />
+        </div>
+      )}
+
+      {allTeamsFilled && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "#f5ecd3",
+          backgroundImage: "url('/pictures/background_1.jpeg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 1200,
+          padding: "24px",
+          boxSizing: "border-box"
+        }}>
+          <div style={{
+            width: "min(900px, 92vw)",
+            borderRadius: "18px",
+            padding: "28px 24px",
+            textAlign: "center",
+            background: "linear-gradient(180deg, rgba(22,28,70,0.96), rgba(10,12,32,0.96))",
+            border: "1.5px solid rgba(225,195,120,0.85)",
+            boxShadow: "0 20px 48px rgba(0,0,0,0.5)",
+            color: "#f1e9cc"
+          }}>
+            <div style={{ fontSize: "clamp(34px, 5vw, 62px)", fontWeight: 900, letterSpacing: "1px", lineHeight: 1.05 }}>
+              AUCTION COMPLETE
+            </div>
+            <div style={{ marginTop: 14, fontSize: "clamp(18px, 2.1vw, 28px)", fontWeight: 700 }}>
+              All teams now have 15 players each.
+            </div>
+          </div>
         </div>
       )}
 
