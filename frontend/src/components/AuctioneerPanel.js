@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { sellPlayer, selectPlayerForAuction, updateBid, markPlayerUnsold, relistPlayer, undoUnsold } from "../api";
 
-export default function AuctioneerPanel({ teams, players, socket, setTeams, setPlayers, onShowTeams, onShowTeamDetails }) {
+export default function AuctioneerPanel({ teams, players, socket, setTeams, setPlayers, onShowTeams, onShowTeamDetails, auctionStarted, onStartAuction }) {
   const TEAM_MAX_PLAYERS = 15;
   const MIN_PLAYER_COST = 1000;
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -115,6 +115,13 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
 
   // Keep selected player valid for the active mode.
   useEffect(() => {
+    if (!auctionStarted) {
+      setSelectedPlayer(null);
+      setSelectedTeam(null);
+      setBid(0);
+      return;
+    }
+
     if (awaitingSellConfirmation) {
       return;
     }
@@ -152,7 +159,7 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
         setSelectedPlayer(null);
       }
     }
-  }, [players, selectedPlayer, selectionMode, awaitingSellConfirmation, isAuctionComplete]);
+  }, [players, selectedPlayer, selectionMode, awaitingSellConfirmation, isAuctionComplete, auctionStarted]);
 
   // Reset heartbeat and click count when player changes
   useEffect(() => {
@@ -178,6 +185,11 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
 
   // Auto-update bid amount when player is selected
   useEffect(() => {
+    if (!auctionStarted) {
+      setBid(0);
+      return;
+    }
+
     if (selectedPlayer) {
       const player = players.find(p => p.id == selectedPlayer);
       if (player) {
@@ -662,13 +674,36 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
         </div>
       </div>
       {message && <p style={{ color: message.includes("Error") ? "red" : "green", fontWeight: "bold" }}>{message}</p>}
+
+      <div style={{ marginBottom: 16, display: "flex", gap: 10, alignItems: "center" }}>
+        <button
+          onClick={() => onStartAuction && onStartAuction()}
+          disabled={auctionStarted || isAuctionComplete}
+          style={{
+            padding: "12px 18px",
+            border: "none",
+            borderRadius: "6px",
+            background: auctionStarted ? "#6c757d" : "#198754",
+            color: "white",
+            fontWeight: "bold",
+            cursor: auctionStarted ? "not-allowed" : "pointer"
+          }}
+        >
+          {auctionStarted ? "Auction Started" : "Start Auction"}
+        </button>
+        {!auctionStarted && (
+          <span style={{ color: "#495057", fontWeight: 600 }}>
+            Click Start Auction to show teams/player card on dashboard and begin auction.
+          </span>
+        )}
+      </div>
       
       <div style={{ marginBottom: 20 }}>
         <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>Player Selection Mode:</label>
         <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
           <button
             onClick={() => setSelectionMode("auto")}
-            disabled={isAuctionComplete}
+            disabled={!auctionStarted || isAuctionComplete}
             style={{
               flex: 1,
               padding: "8px 10px",
@@ -683,7 +718,7 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
           </button>
           <button
             onClick={() => setSelectionMode("manual")}
-            disabled={isAuctionComplete}
+            disabled={!auctionStarted || isAuctionComplete}
             style={{
               flex: 1,
               padding: "8px 10px",
@@ -704,7 +739,7 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
             <select
               onChange={e => setSelectedPlayer(e.target.value || null)}
               value={selectedPlayer || ""}
-              disabled={isAuctionComplete}
+              disabled={!auctionStarted || isAuctionComplete}
               style={{ width: "100%", padding: "8px" }}
             >
               <option value="">Select Player</option>
@@ -742,7 +777,7 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
         <select 
           onChange={e => setSelectedTeam(e.target.value)} 
           value={selectedTeam || ""}
-          disabled={isAuctionComplete}
+          disabled={!auctionStarted || isAuctionComplete}
           style={{ width: "100%", padding: "8px", marginBottom: 10 }}
         >
           <option value="">Select Team</option>
@@ -766,28 +801,28 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
           placeholder="Bid Amount" 
           onChange={e => setBid(Number(e.target.value))} 
           value={bid || ""} 
-          disabled={isAuctionComplete}
+          disabled={!auctionStarted || isAuctionComplete}
           style={{ width: "100%", padding: "8px", marginBottom: 10 }}
         />
         
         <div style={{ display: "flex", gap: "10px", marginBottom: 10 }}>
           <button 
             onClick={() => incrementBid(1000)} 
-            disabled={isAuctionComplete}
+            disabled={!auctionStarted || isAuctionComplete}
             style={{ flex: 1, padding: "10px", background: "#28a745", color: "white", border: "none", borderRadius: "4px" }}
           >
             +₹1000
           </button>
           <button 
             onClick={() => incrementBid(2000)} 
-            disabled={isAuctionComplete}
+            disabled={!auctionStarted || isAuctionComplete}
             style={{ flex: 1, padding: "10px", background: "#007bff", color: "white", border: "none", borderRadius: "4px" }}
           >
             +₹2000
           </button>
           <button 
             onClick={() => incrementBid(5000)} 
-            disabled={isAuctionComplete}
+            disabled={!auctionStarted || isAuctionComplete}
             style={{ flex: 1, padding: "10px", background: "#dc3545", color: "white", border: "none", borderRadius: "4px" }}
           >
             +₹5000
@@ -797,21 +832,21 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
         <div style={{ display: "flex", gap: "10px", marginBottom: 10 }}>
           <button 
             onClick={() => decrementBid(1000)} 
-            disabled={isAuctionComplete}
+            disabled={!auctionStarted || isAuctionComplete}
             style={{ flex: 1, padding: "10px", background: "#6c757d", color: "white", border: "none", borderRadius: "4px" }}
           >
             -₹1000
           </button>
           <button 
             onClick={() => decrementBid(2000)} 
-            disabled={isAuctionComplete}
+            disabled={!auctionStarted || isAuctionComplete}
             style={{ flex: 1, padding: "10px", background: "#495057", color: "white", border: "none", borderRadius: "4px" }}
           >
             -₹2000
           </button>
           <button 
             onClick={() => decrementBid(5000)} 
-            disabled={isAuctionComplete}
+            disabled={!auctionStarted || isAuctionComplete}
             style={{ flex: 1, padding: "10px", background: "#343a40", color: "white", border: "none", borderRadius: "4px" }}
           >
             -₹5000
@@ -822,7 +857,7 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
       <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
         <button
           onClick={handleSell}
-          disabled={!selectedPlayer || awaitingSellConfirmation || isAuctionComplete}
+          disabled={!auctionStarted || !selectedPlayer || awaitingSellConfirmation || isAuctionComplete}
           style={{
             flex: 1,
             padding: "15px",
@@ -838,7 +873,7 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
         </button>
         <button
           onClick={handleUnsold}
-          disabled={!selectedPlayer || awaitingSellConfirmation || isAuctionComplete}
+          disabled={!auctionStarted || !selectedPlayer || awaitingSellConfirmation || isAuctionComplete}
           style={{
             flex: 1,
             padding: "15px",

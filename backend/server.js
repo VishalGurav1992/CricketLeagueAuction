@@ -637,6 +637,10 @@ io.on('connection', (socket) => {
   socket.on('toggleLogoOverlay', (data) => {
     io.emit('toggleLogoOverlay', { show: !!data?.show });
   });
+
+  socket.on('startAuction', () => {
+    io.emit('startAuction');
+  });
   
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);

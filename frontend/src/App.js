@@ -9,6 +9,7 @@ function App() {
   const [players, setPlayers] = useState([]);
   const [socket, setSocket] = useState(null);
   const [currentAuction, setCurrentAuction] = useState({ player: null, currentBid: 0 });
+  const [auctionStarted, setAuctionStarted] = useState(false);
   const [auctionError, setAuctionError] = useState(null);
   const [selectedTeamDetails, setSelectedTeamDetails] = useState(null);
   const [showTeamsOverlay, setShowTeamsOverlay] = useState(false);
@@ -144,6 +145,7 @@ function App() {
       setTeams(await getTeams());
       setPlayers(await getPlayers());
       setCurrentAuction({ player: null, currentBid: 0 });
+      setAuctionStarted(false);
       setAuctionError(null);
       handleCloseTeamDetails();
     };
@@ -162,6 +164,7 @@ function App() {
     const handlePlayerSelected = (data) => {
       // Update current auction when player is selected
       setCurrentAuction(data);
+      setAuctionStarted(true);
     };
 
     const handleBidUpdated = (data) => {
@@ -238,6 +241,10 @@ function App() {
       setFullscreenRequestNonce(prev => prev + 1);
     };
 
+    const handleStartAuction = () => {
+      setAuctionStarted(true);
+    };
+
     socket.on("playerSold", handlePlayerSold);
     socket.on("playerRelisted", handlePlayerRelisted);
     socket.on("databaseReset", handleDatabaseReset);
@@ -249,6 +256,7 @@ function App() {
     socket.on("showTeamsOverlay", handleShowTeamsOverlay);
     socket.on("hideTeamsOverlay", handleHideTeamsOverlay);
     socket.on("showTeamFullscreen", handleShowTeamFullscreen);
+    socket.on("startAuction", handleStartAuction);
 
     return () => {
       socket.off("playerSold", handlePlayerSold);
@@ -262,8 +270,16 @@ function App() {
       socket.off("showTeamsOverlay", handleShowTeamsOverlay);
       socket.off("hideTeamsOverlay", handleHideTeamsOverlay);
       socket.off("showTeamFullscreen", handleShowTeamFullscreen);
+      socket.off("startAuction", handleStartAuction);
     };
   }, [socket, shouldGateTeamDetailsOpen]);
+
+  const handleStartAuction = () => {
+    setAuctionStarted(true);
+    if (socket) {
+      socket.emit("startAuction");
+    }
+  };
 
   const handleShowTeamsRequest = (teamId) => {
     const numericTeamId = Number(teamId);
@@ -281,13 +297,13 @@ function App() {
   return (
     <div>
       {isDashboardMode ? (
-        <Dashboard teams={teams} players={players} currentAuction={currentAuction} socket={socket} auctionError={auctionError} selectedTeamDetails={selectedTeamDetails} onCloseTeamDetails={handleCloseTeamDetails} showTeamsOverlay={showTeamsOverlay} onCloseTeamsOverlay={() => setShowTeamsOverlay(false)} onShowTeams={() => handleShowTeamsRequest()} onShowTeamFullscreen={handleShowTeamsRequest} requestedFullscreenTeamId={requestedFullscreenTeamId} fullscreenRequestNonce={fullscreenRequestNonce} />
+        <Dashboard teams={teams} players={players} currentAuction={currentAuction} socket={socket} auctionError={auctionError} selectedTeamDetails={selectedTeamDetails} onCloseTeamDetails={handleCloseTeamDetails} showTeamsOverlay={showTeamsOverlay} onCloseTeamsOverlay={() => setShowTeamsOverlay(false)} onShowTeams={() => handleShowTeamsRequest()} onShowTeamFullscreen={handleShowTeamsRequest} requestedFullscreenTeamId={requestedFullscreenTeamId} fullscreenRequestNonce={fullscreenRequestNonce} auctionStarted={auctionStarted} />
       ) : isAuctioneerMode ? (
-        <AuctioneerPanel teams={teams} players={players} socket={socket} setTeams={setTeams} setPlayers={setPlayers} onShowTeams={handleShowTeamsRequest} onShowTeamDetails={handleRequestTeamDetails} />
+        <AuctioneerPanel teams={teams} players={players} socket={socket} setTeams={setTeams} setPlayers={setPlayers} onShowTeams={handleShowTeamsRequest} onShowTeamDetails={handleRequestTeamDetails} auctionStarted={auctionStarted} onStartAuction={handleStartAuction} />
       ) : (
         <div style={{ display: "flex", flexDirection: "row" }}>
-          <Dashboard teams={teams} players={players} currentAuction={currentAuction} socket={socket} auctionError={auctionError} selectedTeamDetails={selectedTeamDetails} onCloseTeamDetails={handleCloseTeamDetails} showTeamsOverlay={showTeamsOverlay} onCloseTeamsOverlay={() => setShowTeamsOverlay(false)} onShowTeams={() => handleShowTeamsRequest()} onShowTeamFullscreen={handleShowTeamsRequest} requestedFullscreenTeamId={requestedFullscreenTeamId} fullscreenRequestNonce={fullscreenRequestNonce} />
-          <AuctioneerPanel teams={teams} players={players} socket={socket} setTeams={setTeams} setPlayers={setPlayers} onShowTeams={handleShowTeamsRequest} onShowTeamDetails={handleRequestTeamDetails} />
+          <Dashboard teams={teams} players={players} currentAuction={currentAuction} socket={socket} auctionError={auctionError} selectedTeamDetails={selectedTeamDetails} onCloseTeamDetails={handleCloseTeamDetails} showTeamsOverlay={showTeamsOverlay} onCloseTeamsOverlay={() => setShowTeamsOverlay(false)} onShowTeams={() => handleShowTeamsRequest()} onShowTeamFullscreen={handleShowTeamsRequest} requestedFullscreenTeamId={requestedFullscreenTeamId} fullscreenRequestNonce={fullscreenRequestNonce} auctionStarted={auctionStarted} />
+          <AuctioneerPanel teams={teams} players={players} socket={socket} setTeams={setTeams} setPlayers={setPlayers} onShowTeams={handleShowTeamsRequest} onShowTeamDetails={handleRequestTeamDetails} auctionStarted={auctionStarted} onStartAuction={handleStartAuction} />
         </div>
       )}
     </div>

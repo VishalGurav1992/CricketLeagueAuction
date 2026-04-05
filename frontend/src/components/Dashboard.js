@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { relistPlayer, exportRemainingPlayersPdf } from "../api";
 
-export default function Dashboard({ teams, players, currentAuction, socket, auctionError, selectedTeamDetails, onCloseTeamDetails, showTeamsOverlay, onCloseTeamsOverlay, onShowTeams, onShowTeamFullscreen, requestedFullscreenTeamId, fullscreenRequestNonce }) {
+export default function Dashboard({ teams, players, currentAuction, socket, auctionError, selectedTeamDetails, onCloseTeamDetails, showTeamsOverlay, onCloseTeamsOverlay, onShowTeams, onShowTeamFullscreen, requestedFullscreenTeamId, fullscreenRequestNonce, auctionStarted }) {
   const [showCongratsPopup, setShowCongratsPopup] = useState(false);
   const [soldPlayerInfo, setSoldPlayerInfo] = useState(null);
   const [showLogoOverlay, setShowLogoOverlay] = useState(false);
@@ -582,7 +582,8 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
         gap: rootGap
       }}
     >
-      <div style={{ position: "relative", minHeight: headerMinHeight, display: "flex", alignItems: "flex-end", justifyContent: "center", marginBottom: isProjectorLayout ? 0 : 2 }}>
+      {auctionStarted && (
+        <div style={{ position: "relative", minHeight: headerMinHeight, display: "flex", alignItems: "flex-end", justifyContent: "center", marginBottom: isProjectorLayout ? 0 : 2 }}>
         <h1 ref={titleRef} className="dashboard-title" style={{
           textAlign: "center",
           color: "#ffffff",
@@ -610,9 +611,10 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
           />
           Siddar Premier League Auction 2026
         </h1>
-      </div>
+        </div>
+      )}
 
-      {auctionError && (
+      {auctionStarted && auctionError && (
         <div style={{
           margin: "0 auto 20px",
           maxWidth: "600px",
@@ -628,6 +630,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
         </div>
       )}
 
+      {auctionStarted && (
       <div className="dashboard-content" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         {/* Teams Cards - 3 columns x 2 rows */}
         <div style={{ flex: "0 0 40%", minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: teamPanelGap, paddingBottom: teamPanelGap, opacity: showTeamsOnlyView ? 1 : (showTeamPanel ? 1 : 0), transition: "opacity 1000ms ease" }}>
@@ -914,6 +917,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
           )}
         </div>
       </div>
+      )}
 
       {showTeamsOverlay && (
         <div style={{
@@ -1783,7 +1787,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
         </div>
       )}
 
-      {allTeamsFilled && !hideAuctionCompleteOverlay && (
+      {auctionStarted && allTeamsFilled && !hideAuctionCompleteOverlay && (
         <div style={{
           position: "fixed",
           top: 0,
