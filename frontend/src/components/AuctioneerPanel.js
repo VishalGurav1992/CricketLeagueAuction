@@ -14,6 +14,7 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
   const [awaitingSellConfirmation, setAwaitingSellConfirmation] = useState(false);
   const [countdownValue, setCountdownValue] = useState(null);
   const [isAuctionComplete, setIsAuctionComplete] = useState(false);
+  const [showAuctionCompletePopup, setShowAuctionCompletePopup] = useState(false);
   const [showLogo, setShowLogo] = useState(false);
   const [heartbeatEnabled, setHeartbeatEnabled] = useState(false);
   const [leagueAudioEnabled, setLeagueAudioEnabled] = useState(false);
@@ -34,9 +35,11 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
 
   const getPlayerCategory = (player) => {
     const category = String(player?.auction_category || "NEW").toUpperCase();
-    if (category === "EXTRA PLAYER" || isExtraPlayer(player)) return "EXTRA PLAYER";
-    if (category === "RELIST") return "RELIST";
+    // Check explicit UNSOLD and RELIST categories first (before ID-based checks)
     if (category === "UNSOLD") return "UNSOLD";
+    if (category === "RELIST") return "RELIST";
+    // For EXTRA PLAYER, check both explicit category and ID range (83-90)
+    if (category === "EXTRA PLAYER" || isExtraPlayer(player)) return "EXTRA PLAYER";
     return "NEW";
   };
 
@@ -102,7 +105,7 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
       setSelectedTeam(null);
       setBid(0);
       setMessage("Auction complete: all teams have 15 players.");
-      window.alert("Auction complete: all teams now have 15 players each.");
+      setShowAuctionCompletePopup(true);
     }
 
     if (!allTeamsFilled) {
@@ -449,12 +452,20 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
   };
 
   const playSoldSound = () => {
-    if (!soldAudioRef.current) {
-      soldAudioRef.current = new Audio('/sounds/sold_sound.mp3');
-      soldAudioRef.current.volume = 1;
+    try {
+      // Always recreate to ensure clean audio element state after pause/resume
+      const audio = new Audio('/sounds/sold_sound.mp3');
+      audio.volume = 1;
+      audio.currentTime = 0;
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.warn('Could not play sold sound:', error);
+        });
+      }
+    } catch (error) {
+      console.warn('Error playing sold sound:', error);
     }
-    soldAudioRef.current.currentTime = 0;
-    soldAudioRef.current.play().catch(() => {});
   };
 
   const toggleLeagueAudio = () => {
@@ -972,6 +983,56 @@ export default function AuctioneerPanel({ teams, players, socket, setTeams, setP
       >
         Reset Database
       </button>
+
+      {showAuctionCompletePopup && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(0, 0, 0, 0.7)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 10000
+        }}>
+          <div style={{
+            background: "white",
+            padding: "40px",
+            borderRadius: "12px",
+            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)",
+            textAlign: "center",
+            maxWidth: "420px",
+            minWidth: "300px"
+          }}>
+            <h2 style={{ color: "#28a745", marginBottom: "20px", fontSize: "28px" }}>🎉 Auction Complete!</h2>
+            <p style={{ fontSize: "16px", color: "#333", marginBottom: "30px", lineHeight: "1.6" }}>
+              All teams have successfully filled their rosters with 15 players each.
+            </p>
+            <button
+              onClick={() => {
+                setShowAuctionCompletePopup(false);
+              }}
+              style={{
+                padding: "12px 40px",
+                background: "#28a745",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                fontSize: "16px",
+                fontWeight: "bold",
+                cursor: "pointer",
+                transition: "background 0.3s"
+              }}
+              onMouseOver={(e) => e.target.style.background = "#218838"}
+              onMouseOut={(e) => e.target.style.background = "#28a745"}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

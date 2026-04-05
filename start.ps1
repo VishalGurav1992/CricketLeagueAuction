@@ -1,135 +1,94 @@
-# PowerShell script to start the auction system reliably on Windows
+# PowerShell script to start the auction system
+# Run this script from the SPLAuction directory
 
-Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
-
-function Get-ListeningPids {
+function Test-Port {
     param([int]$Port)
-
-    $listeners = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-    if (-not $listeners) {
-        return @()
-    }
-
-    return @($listeners | Select-Object -ExpandProperty OwningProcess -Unique)
-}
-
-function Test-PortInUse {
-    param([int]$Port)
-    return (Get-ListeningPids -Port $Port).Count -gt 0
+    $connection = Test-NetConnection -ComputerName localhost -Port $Port -WarningAction SilentlyContinue
+    return $connection.TcpTestSucceeded
 }
 
 function Free-Port {
     param([int]$Port, [string]$Name)
-
-    $pids = Get-ListeningPids -Port $Port
-    if (-not $pids -or $pids.Count -eq 0) {
-        return
-    }
-
-    foreach ($owningPid in $pids) {
-        if ($owningPid -eq $PID) {
-            continue
-        }
-
-        try {
-            $process = Get-Process -Id $owningPid -ErrorAction SilentlyContinue
+    try {
+        $connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
+        if ($connections) {
+            $processId = $connections[0].OwningProcess
+            $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
             if ($process) {
-                Write-Host "Killing process '$($process.ProcessName)' (PID: $owningPid) using $Name" -ForegroundColor Yellow
-                Stop-Process -Id $owningPid -Force -ErrorAction Stop
+                Write-Host "Killing process '$($process.ProcessName)' (PID: $processId) using $Name" -ForegroundColor Yellow
+                Stop-Process -Id $processId -Force
+                Start-Sleep -Seconds 1
             }
         }
-        catch {
-            Write-Host "Could not kill PID $owningPid on $Name: $($_.Exception.Message)" -ForegroundColor Red
-        }
+    } catch {
+        Write-Host "Could not free $Name automatically" -ForegroundColor Red
     }
 }
-
-function Wait-ForPortState {
-    param(
-        [int]$Port,
-        [bool]$ShouldBeInUse,
-        [int]$TimeoutSeconds = 20
-    )
-
-    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    while ((Get-Date) -lt $deadline) {
-        if ((Test-PortInUse -Port $Port) -eq $ShouldBeInUse) {
-            return $true
-        }
-        Start-Sleep -Milliseconds 500
-    }
-
-    return $false
-}
-
-$root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$backendDir = Join-Path $root "backend"
-$frontendDir = Join-Path $root "frontend"
 
 Write-Host "Checking port availability..." -ForegroundColor Yellow
 
-$targets = @(
-    @{ Port = 5000; Name = "Backend (5000)" },
-    @{ Port = 3000; Name = "Dashboard (3000)" },
-    @{ Port = 3001; Name = "Auctioneer (3001)" }
-)
+$ports = @(5000, 3000, 3001)
+$portNames = @("Backend (5000)", "Dashboard (3000)", "Auctioneer (3001)")
 
-foreach ($target in $targets) {
-    $port = [int]$target.Port
-    $name = [string]$target.Name
-
-    if (Test-PortInUse -Port $port) {
+for ($i = 0; $i -lt $ports.Length; $i++) {
+    $port = $ports[$i]
+    $name = $portNames[$i]
+    if (Test-Port -Port $port) {
         Write-Host "WARNING: $name is in use. Attempting to free it..." -ForegroundColor Red
         Free-Port -Port $port -Name $name
-
-        if (-not (Wait-ForPortState -Port $port -ShouldBeInUse $false -TimeoutSeconds 15)) {
-            Write-Host "Failed to free $name. Please close the process manually and retry." -ForegroundColor Red
+        if (Test-Port -Port $port) {
+            Write-Host "Failed to free $name. Please free it manually." -ForegroundColor Red
             exit 1
+        } else {
+            Write-Host "$name is now free" -ForegroundColor Green
         }
-
-        Write-Host "$name is now free" -ForegroundColor Green
-    }
-    else {
+    } else {
         Write-Host "$name is available" -ForegroundColor Green
     }
 }
 
-Write-Host "All required ports are ready. Starting auction services..." -ForegroundColor Green
+Write-Host "All ports are free. Starting Auction System..." -ForegroundColor Green
 
-Write-Host "Starting backend on port 5000..." -ForegroundColor Yellow
-Start-Process -FilePath "cmd.exe" -ArgumentList "/c cd /d `"$backendDir`" && node server.js" -WindowStyle Minimized
+# Start backend server
+Write-Host "Starting backend server..." -ForegroundColor Yellow
+Set-Location ".\backend"
+Start-Process -FilePath "cmd" -ArgumentList "/c node server.js" -NoNewWindow
+Set-Location ".."
 
-if (-not (Wait-ForPortState -Port 5000 -ShouldBeInUse $true -TimeoutSeconds 20)) {
-    Write-Host "Backend did not start on port 5000 in time." -ForegroundColor Red
-    exit 1
-}
+# Wait for backend to start
+Start-Sleep -Seconds 3
 
-Write-Host "Starting dashboard on port 3000..." -ForegroundColor Yellow
-Start-Process -FilePath "cmd.exe" -ArgumentList "/c cd /d `"$frontendDir`" && set REACT_APP_MODE=dashboard && set PORT=3000 && set BROWSER=none && npm start" -WindowStyle Minimized
+# Start dashboard
+Write-Host "Starting dashboard..." -ForegroundColor Yellow
+Set-Location ".\frontend"
+$env:REACT_APP_MODE = "dashboard"
+$env:PORT = "3000"
+$env:BROWSER = "none"  # Prevent React from opening browser
+Start-Process -FilePath "cmd" -ArgumentList "/c npm start" -NoNewWindow
+Set-Location ".."
 
-Write-Host "Starting auctioneer panel on port 3001..." -ForegroundColor Yellow
-Start-Process -FilePath "cmd.exe" -ArgumentList "/c cd /d `"$frontendDir`" && set REACT_APP_MODE=auctioneer && set PORT=3001 && set BROWSER=none && npm start" -WindowStyle Minimized
+# Start auctioneer
+Write-Host "Starting auctioneer panel..." -ForegroundColor Yellow
+Set-Location ".\frontend"
+$env:REACT_APP_MODE = "auctioneer"
+$env:PORT = "3001"
+$env:BROWSER = "none"  # Prevent React from opening browser
+Start-Process -FilePath "cmd" -ArgumentList "/c npm start" -NoNewWindow
+Set-Location ".."
 
-Write-Host "Waiting for frontend ports..." -ForegroundColor Yellow
-$dashboardReady = Wait-ForPortState -Port 3000 -ShouldBeInUse $true -TimeoutSeconds 45
-$auctioneerReady = Wait-ForPortState -Port 3001 -ShouldBeInUse $true -TimeoutSeconds 45
-
-if (-not $dashboardReady) {
-    Write-Host "Dashboard did not start on port 3000 in time." -ForegroundColor Red
-}
-if (-not $auctioneerReady) {
-    Write-Host "Auctioneer did not start on port 3001 in time." -ForegroundColor Red
-}
-
-Write-Host "Startup command completed." -ForegroundColor Green
-Write-Host "Backend: http://localhost:5000" -ForegroundColor Cyan
+Write-Host "All services started!" -ForegroundColor Green
 Write-Host "Dashboard: http://localhost:3000" -ForegroundColor Cyan
 Write-Host "Auctioneer: http://localhost:3001" -ForegroundColor Cyan
+Write-Host "Backend: http://localhost:5000" -ForegroundColor Cyan
 
-if ($dashboardReady) {
-    Start-Process "http://localhost:3000"
-}
-if ($auctioneerReady) {
-    Start-Process "http://localhost:3001"
+# Open browser tabs
+Write-Host "Opening browser tabs..." -ForegroundColor Yellow
+Start-Process "http://localhost:3000"
+Start-Process "http://localhost:3001"
+
+Write-Host "Services are running. Press Ctrl+C to exit." -ForegroundColor Green
+
+# Keep the script running
+while ($true) {
+    Start-Sleep -Seconds 1
 }

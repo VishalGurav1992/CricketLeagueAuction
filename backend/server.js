@@ -2,8 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const db = require('./db');
 const fs = require('fs');
+const path = require('path');
 const http = require('http');
 const socketIO = require('socket.io');
+const PDFDocument = require('pdfkit');
 
 const app = express();
 const server = http.createServer(app);
@@ -677,4 +679,77 @@ app.post('/reset', (req, res) => {
       });
     });
   });
+});
+
+app.post('/auction/export-remaining-players-pdf', (req, res) => {
+  db.all(
+    `SELECT id, name, role, base_price, auction_category, age, mobile_number
+     FROM players
+     WHERE sold_to_team IS NULL
+       AND LOWER(COALESCE(role, '')) <> 'captain'
+     ORDER BY id ASC`,
+    [],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      const remainingPlayers = (rows || []).map((row) => hydratePlayerFromConfig(row));
+      const now = new Date();
+      const timestamp = now.toISOString().replace(/[:]/g, '-').replace(/\..+$/, '');
+      const fileName = `remaining-players-${timestamp}.pdf`;
+      const outputPath = path.join(__dirname, '..', fileName);
+
+      const doc = new PDFDocument({ margin: 36, size: 'A4' });
+      const stream = fs.createWriteStream(outputPath);
+      doc.pipe(stream);
+
+      doc.font('Helvetica-Bold').fontSize(18).text('SPL Auction - Remaining Players Report');
+      doc.moveDown(0.4);
+      doc.font('Helvetica').fontSize(10).text(`Generated: ${now.toLocaleString('en-IN')}`);
+      doc.moveDown(0.8);
+
+      if (remainingPlayers.length === 0) {
+        doc.font('Helvetica').fontSize(12).text('No remaining players found.');
+      } else {
+        doc.font('Helvetica-Bold').fontSize(11).text('ID   Name                           Role                 Category       Mobile          Age');
+        doc.moveDown(0.2);
+        doc.font('Helvetica').fontSize(10);
+
+        remainingPlayers.forEach((player) => {
+          const id = String(player.id ?? '-').padEnd(4, ' ');
+          const name = String(player.name || '-').slice(0, 30).padEnd(30, ' ');
+          const role = String(player.role || '-').slice(0, 20).padEnd(20, ' ');
+          const category = String(player.auction_category || '-').slice(0, 14).padEnd(14, ' ');
+          const mobile = String(player.mobile_number || '-').slice(0, 14).padEnd(14, ' ');
+          const age = String(player.age ?? '-');
+
+          doc.text(`${id} ${name} ${role} ${category} ${mobile} ${age}`);
+
+          // Keep content readable across pages.
+          if (doc.y > 760) {
+            doc.addPage();
+            doc.font('Helvetica-Bold').fontSize(11).text('ID   Name                           Role                 Category       Mobile          Age');
+            doc.moveDown(0.2);
+            doc.font('Helvetica').fontSize(10);
+          }
+        });
+      }
+
+      doc.end();
+
+      stream.on('finish', () => {
+        res.json({
+          message: 'Remaining players PDF created',
+          fileName,
+          filePath: outputPath,
+          count: remainingPlayers.length
+        });
+      });
+
+      stream.on('error', (streamErr) => {
+        res.status(500).json({ error: streamErr.message || 'Failed to write PDF file' });
+      });
+    }
+  );
 });

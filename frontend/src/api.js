@@ -69,3 +69,11 @@ export async function undoUnsold(playerId, previousCategory) {
   });
   return res.json();
 }
+
+export async function exportRemainingPlayersPdf() {
+  const res = await fetch(`${API_URL}/auction/export-remaining-players-pdf`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" }
+  });
+  return res.json();
+}

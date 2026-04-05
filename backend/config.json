@@ -551,16 +551,16 @@
     {
       "id": 36,
       "name": "Nagaraj Naik",
-      "role": "All-Rounder",
+      "role": "Batsaman",
       "base_price": 1000,
-      "photo": "/images/player_photo/Downloaded_Photos/NAGARAJ.jpg",
-      "age": 26,
-      "mobile_number": "9483490361",
-      "village": "Siddar Ajgeri",
+      "photo": "/images/player_photo/Downloaded_Photos/Nagaraj Naik.jpg",
+      "age": 30,
+      "mobile_number": "8762939830",
+      "village": "Siddar Udagirwada",
       "batting_style": "Right-Handed Batsman",
-      "bowling_style": "Right-Arm Bowler",
-      "jersey_name": "NAGARAJ",
-      "jersey_no": "99"
+      "bowling_style": "Do not Bowl",
+      "jersey_name": "Abu",
+      "jersey_no": "18"
     },
     {
       "id": 37,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { relistPlayer } from "../api";
+import { relistPlayer, exportRemainingPlayersPdf } from "../api";
 
 export default function Dashboard({ teams, players, currentAuction, socket, auctionError, selectedTeamDetails, onCloseTeamDetails, showTeamsOverlay, onCloseTeamsOverlay, onShowTeams, onShowTeamFullscreen, requestedFullscreenTeamId, fullscreenRequestNonce }) {
   const [showCongratsPopup, setShowCongratsPopup] = useState(false);
@@ -12,6 +12,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
   const [allowAuctionCardReveal, setAllowAuctionCardReveal] = useState(true);
   const [showAuctionCard, setShowAuctionCard] = useState(false);
   const [auctionCardAnimSeed, setAuctionCardAnimSeed] = useState(0);
+  const [hideAuctionCompleteOverlay, setHideAuctionCompleteOverlay] = useState(false);
   const [revealedTeamsCount, setRevealedTeamsCount] = useState(0);
   const [newlyRevealedIndex, setNewlyRevealedIndex] = useState(-1);
   const [animatingCard, setAnimatingCard] = useState(null);
@@ -330,6 +331,12 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
   });
   const TEAM_MAX_PLAYERS = 15;
   const allTeamsFilled = teams.length > 0 && teams.every((team) => getTeamPlayerCount(team.id) >= TEAM_MAX_PLAYERS);
+  const showTeamsOnlyView = allTeamsFilled && hideAuctionCompleteOverlay;
+  useEffect(() => {
+    if (!allTeamsFilled) {
+      setHideAuctionCompleteOverlay(false);
+    }
+  }, [allTeamsFilled]);
   const teamDetailRows = [
     ...prioritizedTeamDetailPlayers,
     ...Array(Math.max(0, TEAM_MAX_PLAYERS - teamDetailPlayers.length)).fill(null)
@@ -536,6 +543,22 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
     }
   };
 
+  const handleCloseAuctionCompleteOverlay = async () => {
+    setHideAuctionCompleteOverlay(true);
+    setShowTeamPanel(true);
+    setAllowAuctionCardReveal(false);
+    setShowAuctionCard(false);
+
+    try {
+      const result = await exportRemainingPlayersPdf();
+      if (result?.error) {
+        console.warn("Failed to export remaining players PDF:", result.error);
+      }
+    } catch (error) {
+      console.warn("Failed to export remaining players PDF:", error);
+    }
+  };
+
 
   return (
     <div
@@ -607,7 +630,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
 
       <div className="dashboard-content" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         {/* Teams Cards - 3 columns x 2 rows */}
-        <div style={{ flex: "0 0 40%", minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: teamPanelGap, paddingBottom: teamPanelGap, opacity: showTeamPanel ? 1 : 0, transition: "opacity 1000ms ease" }}>
+        <div style={{ flex: "0 0 40%", minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: teamPanelGap, paddingBottom: teamPanelGap, opacity: showTeamsOnlyView ? 1 : (showTeamPanel ? 1 : 0), transition: "opacity 1000ms ease" }}>
           <div style={{
             flex: 1,
             minHeight: 0,
@@ -751,7 +774,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
         </div>
         {/* Auction Zone - full lower panel */}
         <div style={{ flex: "0 0 60%", minHeight: 0, position: "relative" }}>
-          {displayedAuctionPlayer && (
+          {!showTeamsOnlyView && displayedAuctionPlayer && (
             <>
               <div
                 key={`${displayedAuctionPlayer.id}-${auctionCardAnimSeed}`}
@@ -1760,7 +1783,7 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
         </div>
       )}
 
-      {allTeamsFilled && (
+      {allTeamsFilled && !hideAuctionCompleteOverlay && (
         <div style={{
           position: "fixed",
           top: 0,
@@ -1787,8 +1810,26 @@ export default function Dashboard({ teams, players, currentAuction, socket, auct
             background: "linear-gradient(180deg, rgba(22,28,70,0.96), rgba(10,12,32,0.96))",
             border: "1.5px solid rgba(225,195,120,0.85)",
             boxShadow: "0 20px 48px rgba(0,0,0,0.5)",
-            color: "#f1e9cc"
+            color: "#f1e9cc",
+            position: "relative"
           }}>
+            <button
+              onClick={handleCloseAuctionCompleteOverlay}
+              style={{
+                position: "absolute",
+                top: 12,
+                right: 12,
+                border: "none",
+                borderRadius: 6,
+                padding: "8px 12px",
+                background: "#8b1e1e",
+                color: "#ffffff",
+                fontWeight: "bold",
+                cursor: "pointer"
+              }}
+            >
+              Close
+            </button>
             <div style={{ fontSize: "clamp(34px, 5vw, 62px)", fontWeight: 900, letterSpacing: "1px", lineHeight: 1.05 }}>
               AUCTION COMPLETE
             </div>
